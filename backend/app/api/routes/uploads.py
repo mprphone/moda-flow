@@ -28,4 +28,5 @@ async def upload_image(file: UploadFile):
     directory.mkdir(parents=True, exist_ok=True)
     name = f"{uuid.uuid4().hex}{extension}"
     (directory / name).write_bytes(content)
-    return {"url": f"{settings.public_url.rstrip('/')}/uploads/{name}"}
+    base = settings.public_url.strip().rstrip("/")
+    return {"url": f"{base}/uploads/{name}"}
