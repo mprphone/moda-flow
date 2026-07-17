@@ -1,19 +1,22 @@
 import { useEffect, useMemo, useState } from 'react'
 import { DndContext, DragEndEvent } from '@dnd-kit/core'
-import { Filter } from 'lucide-react'
+import { Filter, PencilRuler, Shirt, Archive, RotateCcw } from 'lucide-react'
 import { api } from '../api/client'
 import { useAuth } from '../auth'
 import { toast } from '../lib/toast'
 import type { Development, Label } from '../types'
-import { PIPELINE } from '../constants/pipeline'
+import { PHASE_ONE, PHASE_ONE_IDS, PHASE_TWO } from '../constants/pipeline'
 import { BoardColumn } from '../components/BoardColumn'
 import { DevelopmentModal } from '../components/DevelopmentModal'
+
+type Phase = 'design' | 'sample' | 'rejected'
 
 export function BoardPage({ refreshKey }: { refreshKey: number }) {
   const { user } = useAuth()
   const [items, setItems] = useState<Development[]>([])
   const [labels, setLabels] = useState<Label[]>([])
   const [selected, setSelected] = useState<Development | null>(null)
+  const [phase, setPhase] = useState<Phase>('design')
   const [query, setQuery] = useState('')
   const [clientFilter, setClientFilter] = useState('')
   const [riskFilter, setRiskFilter] = useState('')
@@ -24,7 +27,7 @@ export function BoardPage({ refreshKey }: { refreshKey: number }) {
 
   const clients = useMemo(() => [...new Set(items.map(item => item.client_name))].sort(), [items])
 
-  const visible = useMemo(() => items.filter(item => {
+  const filtered = useMemo(() => items.filter(item => {
     const text = `${item.code} ${item.title} ${item.owner_name} ${item.client_name}`.toLowerCase()
     if (query && !text.includes(query.toLowerCase())) return false
     if (clientFilter && item.client_name !== clientFilter) return false
@@ -33,9 +36,16 @@ export function BoardPage({ refreshKey }: { refreshKey: number }) {
     return true
   }), [items, query, clientFilter, riskFilter, labelFilter])
 
+  const rejected = useMemo(() => filtered.filter(item => item.status === 'rejected'), [filtered])
+  const active = useMemo(() => filtered.filter(item => item.status !== 'rejected'), [filtered])
+  const isPhaseOne = (stage: string) => (PHASE_ONE_IDS as readonly string[]).includes(stage)
+  const designCount = active.filter(item => isPhaseOne(item.current_stage)).length
+  const sampleCount = active.filter(item => !isPhaseOne(item.current_stage)).length
+
+  const columns = phase === 'design' ? PHASE_ONE : PHASE_TWO
   const grouped = useMemo(
-    () => Object.fromEntries(PIPELINE.map(([id]) => [id, visible.filter(item => item.current_stage === id)])),
-    [visible],
+    () => Object.fromEntries(columns.map(([id]) => [id, active.filter(item => item.current_stage === id)])),
+    [columns, active],
   )
 
   async function move(id: number, stage: string) {
@@ -46,6 +56,11 @@ export function BoardPage({ refreshKey }: { refreshKey: number }) {
       const updated = await api.post<Development>(`/developments/${id}/move`, { to_stage: stage })
       setItems(current => current.map(item => item.id === id ? updated : item))
       setSelected(current => current?.id === id ? updated : current)
+      // aprovação do cliente na fase de proposta: o cartão salta sozinho para a amostra
+      if (stage === 'ficha_tecnica' && phase === 'design') {
+        setPhase('sample')
+        toast('success', 'Proposta aprovada pelo cliente — passou para a amostra física.')
+      }
     } catch {
       setItems(previous)
     }
@@ -55,6 +70,18 @@ export function BoardPage({ refreshKey }: { refreshKey: number }) {
     const updated = await api.patch<Development>(`/developments/${id}`, payload)
     setItems(current => current.map(item => item.id === id ? updated : item))
     setSelected(current => current?.id === id ? updated : current)
+    return updated
+  }
+
+  async function rejectItem(id: number, reason?: string) {
+    await updateItem(id, { status: 'rejected', waiting_reason: reason || null })
+    setSelected(null)
+    toast('success', 'Proposta arquivada como reprovada. Fica no separador Reprovados.')
+  }
+
+  async function reactivate(id: number) {
+    await updateItem(id, { status: 'active', waiting_reason: null })
+    toast('success', 'Desenvolvimento reativado.')
   }
 
   async function addComment(id: number, body: string) {
@@ -90,11 +117,16 @@ export function BoardPage({ refreshKey }: { refreshKey: number }) {
     <div className="page-heading">
       <div>
         <h1>Desenvolvimento de modelos</h1>
-        <p>Arraste os cartões. Tempos, histórico e alertas são atualizados automaticamente.</p>
+        <p>Fase 1: desenho e proposta. Quando o cliente aprova, o cartão passa sozinho para a amostra física.</p>
       </div>
       <div className="board-legend">
         <span className="mint">Concluído</span><span className="sky">Em curso</span><span className="yellow">Aguarda</span><span className="pink">Atraso</span>
       </div>
+    </div>
+    <div className="phase-tabs">
+      <button className={phase === 'design' ? 'active' : ''} onClick={() => setPhase('design')}><PencilRuler size={15}/>1 · Propostas <span>{designCount}</span></button>
+      <button className={phase === 'sample' ? 'active' : ''} onClick={() => setPhase('sample')}><Shirt size={15}/>2 · Amostra física <span>{sampleCount}</span></button>
+      <button className={phase === 'rejected' ? 'active' : ''} onClick={() => setPhase('rejected')}><Archive size={15}/>Reprovados <span>{rejected.length}</span></button>
     </div>
     <div className="filter-bar">
       <Filter size={16}/>
@@ -115,17 +147,32 @@ export function BoardPage({ refreshKey }: { refreshKey: number }) {
       </select>
       {(query || clientFilter || riskFilter || labelFilter) && <button className="clear-filters" onClick={() => { setQuery(''); setClientFilter(''); setRiskFilter(''); setLabelFilter('') }}>Limpar</button>}
     </div>
-    <DndContext onDragEnd={handleDragEnd}>
+    {phase !== 'rejected' && <DndContext onDragEnd={handleDragEnd}>
       <div className="board-scroll">
-        {PIPELINE.map(([id, title]) => <BoardColumn key={id} id={id} title={title} items={grouped[id] || []} onOpen={setSelected}/>) }
+        {columns.map(([id, title]) => <BoardColumn key={id} id={id} title={title} items={grouped[id] || []} onOpen={setSelected}/>) }
       </div>
-    </DndContext>
+    </DndContext>}
+    {phase === 'rejected' && <div className="rejected-list">
+      {rejected.length === 0 && <p className="empty-note">Sem propostas reprovadas. Boa!</p>}
+      {rejected.map(item => <article className="fabric-row" key={item.id}>
+        {item.cover_url && <img src={item.cover_url} alt=""/>}
+        <div className="fabric-main">
+          <strong>{item.code} — {item.title}</strong>
+          <span>{item.client_name} · {item.owner_name}</span>
+          {item.waiting_reason && <em>{item.waiting_reason}</em>}
+        </div>
+        <div className="fabric-actions">
+          <button className="team-action" onClick={() => void reactivate(item.id)}><RotateCcw size={14}/> Reativar</button>
+        </div>
+      </article>)}
+    </div>}
     {selected && <DevelopmentModal
       item={selected}
       labels={labels}
       onClose={() => setSelected(null)}
       onMove={(stage) => void move(selected.id, stage)}
       onStatus={(status, reason) => void updateItem(selected.id, { status, waiting_reason: reason || null })}
+      onReject={(reason) => void rejectItem(selected.id, reason)}
       onLabels={(labelIds) => void updateItem(selected.id, { label_ids: labelIds })}
       onDescription={(text) => saveDescription(selected.id, text)}
       onComment={(body) => addComment(selected.id, body)}

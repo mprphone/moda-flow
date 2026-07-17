@@ -11,7 +11,8 @@ def get_next_action(development: Development) -> str:
         return "Resolver bloqueio"
 
     actions = {
-        Stage.NOVO.value: "Preparar ficha técnica",
+        Stage.NOVO.value: "Concluir desenho e enviar proposta ao cliente",
+        Stage.PROPOSTA_CLIENTE.value: "Registar resposta do cliente à proposta",
         Stage.FICHA_TECNICA.value: "Concluir ficha técnica",
         Stage.DESENVOLVIMENTO_MALHA.value: "Confirmar malha ou pedir desenvolvimento",
         Stage.TINGIMENTO.value: "Confirmar cor e prazo de tingimento",

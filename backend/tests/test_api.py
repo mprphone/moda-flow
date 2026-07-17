@@ -92,6 +92,32 @@ def test_move_preserves_waiting_reason_in_history(client, db_session):
     assert any(event["note"] and "Falta validar medidas" in event["note"] for event in closed)
 
 
+def test_proposal_flow_approve_and_reject(client, db_session):
+    make_user(db_session)
+    headers = login(client)
+    db_session.add(Client(name="Mango"))
+    db_session.commit()
+    client_id = db_session.query(Client).first().id
+
+    # proposta aprovada: desenho -> proposta -> amostra fisica
+    dev_id = client.post("/api/developments", json={
+        "code": "PROP_001", "title": "Vestido linho", "client_id": client_id, "owner_name": "Isabel Fernandes",
+    }, headers=headers).json()["id"]
+    assert client.post(f"/api/developments/{dev_id}/move", json={"to_stage": "proposta_cliente"}, headers=headers).json()["current_stage"] == "proposta_cliente"
+    approved = client.post(f"/api/developments/{dev_id}/move", json={"to_stage": "ficha_tecnica"}, headers=headers).json()
+    assert approved["current_stage"] == "ficha_tecnica"
+    assert approved["status"] == "active"
+
+    # proposta reprovada: sai do quadro e nao aparece nas prioridades do dia
+    rej_id = client.post("/api/developments", json={
+        "code": "PROP_002", "title": "Casaco oversize", "client_id": client_id, "owner_name": "Isabel Fernandes",
+    }, headers=headers).json()["id"]
+    rejected = client.patch(f"/api/developments/{rej_id}", json={"status": "rejected", "waiting_reason": "Cliente não gostou da gola"}, headers=headers)
+    assert rejected.status_code == 200
+    dashboard = client.get("/api/dashboard", headers=headers).json()
+    assert all(item["id"] != rej_id for item in dashboard["priorities"])
+
+
 def test_labels_assignment(client, db_session):
     make_user(db_session)
     headers = login(client)

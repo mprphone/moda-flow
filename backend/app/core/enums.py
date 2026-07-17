@@ -3,6 +3,7 @@ from enum import StrEnum
 
 class Stage(StrEnum):
     NOVO = "novo"
+    PROPOSTA_CLIENTE = "proposta_cliente"
     FICHA_TECNICA = "ficha_tecnica"
     DESENVOLVIMENTO_MALHA = "desenvolvimento_malha"
     TINGIMENTO = "tingimento"
@@ -16,8 +17,14 @@ class Stage(StrEnum):
 
 PIPELINE = [stage.value for stage in Stage]
 
+# Fase 1: proposta/desenho (o cliente ainda não aprovou — muitos morrem aqui).
+# Fase 2: amostra física (só depois de o cliente aprovar o desenho).
+PHASE_ONE = [Stage.NOVO.value, Stage.PROPOSTA_CLIENTE.value]
+PHASE_TWO = [stage for stage in PIPELINE if stage not in PHASE_ONE]
+
 STAGE_LABELS = {
-    Stage.NOVO.value: "Novo pedido",
+    Stage.NOVO.value: "Desenho",
+    Stage.PROPOSTA_CLIENTE.value: "Proposta cliente",
     Stage.FICHA_TECNICA.value: "Ficha técnica",
     Stage.DESENVOLVIMENTO_MALHA.value: "Desenv. malha",
     Stage.TINGIMENTO.value: "Tingimento",
@@ -37,6 +44,7 @@ class DevelopmentStatus(StrEnum):
     BLOCKED = "blocked"
     COMPLETED = "completed"
     CANCELLED = "cancelled"
+    REJECTED = "rejected"
 
 
 class ShoppingStatus(StrEnum):

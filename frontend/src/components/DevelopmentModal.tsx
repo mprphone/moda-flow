@@ -10,6 +10,7 @@ type Props = {
   onClose: () => void
   onMove: (stage: string) => void
   onStatus: (status: string, reason?: string) => void
+  onReject: (reason?: string) => void
   onLabels: (labelIds: number[]) => void
   onDescription: (text: string) => Promise<void>
   onComment: (body: string) => Promise<void>
@@ -17,7 +18,7 @@ type Props = {
   onDelete: () => void
 }
 
-export function DevelopmentModal({ item, labels, onClose, onMove, onStatus, onLabels, onDescription, onComment, onCreateProduction, onDelete }: Props) {
+export function DevelopmentModal({ item, labels, onClose, onMove, onStatus, onReject, onLabels, onDescription, onComment, onCreateProduction, onDelete }: Props) {
   const [detail, setDetail] = useState<DevelopmentDetail | null>(null)
   const [refresh, setRefresh] = useState(0)
   const [notes, setNotes] = useState(item.description || '')
@@ -134,7 +135,13 @@ export function DevelopmentModal({ item, labels, onClose, onMove, onStatus, onLa
       </div>
       <aside className="modal-side">
         <h3>Ações rápidas</h3>
-        {item.current_stage === 'aprovado' ? <button className="action primary" onClick={createProduction}>Criar produção <Factory size={16}/></button> : <button className="action primary" onClick={() => onMove(next[0])}>Concluir e avançar <ArrowRight size={16}/></button>}
+        {item.current_stage === 'novo' && <button className="action primary" onClick={() => onMove('proposta_cliente')}>Enviar proposta ao cliente <ArrowRight size={16}/></button>}
+        {item.current_stage === 'proposta_cliente' && <>
+          <button className="action primary" onClick={() => onMove('ficha_tecnica')}>✔ Cliente aprovou — iniciar amostra</button>
+          <button className="action danger" onClick={() => onReject(window.prompt('Motivo da reprovação (opcional):') || undefined)}>✖ Cliente reprovou</button>
+        </>}
+        {item.current_stage === 'aprovado' && <button className="action primary" onClick={createProduction}>Criar produção <Factory size={16}/></button>}
+        {item.current_stage !== 'novo' && item.current_stage !== 'proposta_cliente' && item.current_stage !== 'aprovado' && <button className="action primary" onClick={() => onMove(next[0])}>Concluir e avançar <ArrowRight size={16}/></button>}
         <button className="action" onClick={() => waitFor('waiting_supplier', 'espera do fornecedor')}>Aguardar fornecedor</button>
         <button className="action" onClick={() => waitFor('waiting_client', 'espera do cliente')}>Aguardar cliente</button>
         <button className="action" onClick={() => onStatus('blocked', window.prompt('Qual é o bloqueio?') || undefined)}>Registar bloqueio</button>

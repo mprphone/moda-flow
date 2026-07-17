@@ -36,9 +36,10 @@ def get_today_dashboard(db: Session) -> dict:
     apply_auto_transitions(db, shopping)
 
     serialized = [serialize_development(item) for item in developments]
+    closed_statuses = {DevelopmentStatus.CANCELLED.value, DevelopmentStatus.REJECTED.value}
     open_items = [
         item for item in serialized
-        if item["current_stage"] != Stage.APROVADO.value and item["status"] != DevelopmentStatus.CANCELLED.value
+        if item["current_stage"] != Stage.APROVADO.value and item["status"] not in closed_statuses
     ]
     for item in open_items:
         item["priority"] = priority_score(item)
