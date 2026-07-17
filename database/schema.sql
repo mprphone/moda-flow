@@ -1,0 +1,3 @@
+-- OBSOLETO: o esquema é agora gerido por migrações Alembic em backend/migrations/,
+-- aplicadas automaticamente no arranque do backend. Este ficheiro deixou de ser
+-- usado (e já não refletia os modelos); não o execute manualmente.
