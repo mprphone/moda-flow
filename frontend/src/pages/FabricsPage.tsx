@@ -61,6 +61,12 @@ export function FabricsPage() {
     toast('success', `Malha em "${FABRIC_STATUS_NAMES[status] || status}".`)
   }
 
+  async function linkDevelopment(id: number, developmentId: string) {
+    const updated = await api.patch<FabricRequest>(`/fabric-requests/${id}`, { development_id: developmentId ? Number(developmentId) : null })
+    setData(current => ({ ...current, items: current.items.map(item => item.id === id ? updated : item) }))
+    toast('success', updated.development_code ? `Malha associada ao modelo ${updated.development_code}.` : 'Associação ao modelo removida.')
+  }
+
   async function remove(id: number) {
     if (!window.confirm('Eliminar este pedido de malha?')) return
     await api.del(`/fabric-requests/${id}`)
@@ -130,6 +136,10 @@ export function FabricsPage() {
             {item.quantity_meters ? `${item.quantity_meters} mts` : ''}{item.quantity_meters && item.price_per_meter ? ' · ' : ''}{item.price_per_meter ? `${item.price_per_meter.toFixed(2)} €/mt` : ''}{item.leadtime ? ` · ${item.leadtime}` : ''}
           </small>}
           <div className="fabric-actions">
+            <select className="status-select" value={item.development_id ?? ''} onChange={e => void linkDevelopment(item.id, e.target.value)} title="Modelo associado">
+              <option value="">Sem modelo</option>
+              {developments.map(d => <option key={d.id} value={d.id}>{d.code}</option>)}
+            </select>
             <select className="status-select" value={item.status} onChange={e => void updateStatus(item.id, e.target.value)}>
               {data.statuses.map(status => <option key={status} value={status}>{FABRIC_STATUS_NAMES[status] || status}</option>)}
             </select>

@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
-import { X, Sparkles, Clock3, UserRound, CalendarDays, ArrowRight, Layers3, Factory, Tag, Trash2, TrendingUp, MessageCircle, StickyNote } from 'lucide-react'
+import { X, Sparkles, Clock3, UserRound, CalendarDays, ArrowRight, Layers3, Factory, Tag, Trash2, TrendingUp, MessageCircle, StickyNote, Scroll } from 'lucide-react'
 import { api } from '../api/client'
-import type { Development, DevelopmentDetail, Label } from '../types'
+import { toast } from '../lib/toast'
+import type { Development, DevelopmentDetail, Label, Supplier } from '../types'
 import { PIPELINE, STAGE_LABELS } from '../constants/pipeline'
 
 type Props = {
@@ -24,11 +25,33 @@ export function DevelopmentModal({ item, labels, onClose, onMove, onStatus, onRe
   const [notes, setNotes] = useState(item.description || '')
   const [comment, setComment] = useState('')
   const [saving, setSaving] = useState(false)
+  const [suppliers, setSuppliers] = useState<Supplier[]>([])
+  const [fabricForm, setFabricForm] = useState({ reference: '', supplier_id: '', quantity_meters: '', color: '' })
+  const [addingFabric, setAddingFabric] = useState(false)
 
   useEffect(() => {
     api.get<DevelopmentDetail>(`/developments/${item.id}`).then(setDetail).catch(() => setDetail(null))
   }, [item.id, item.updated_at, refresh])
   useEffect(() => { setNotes(item.description || '') }, [item.id, item.description])
+  useEffect(() => { api.get<Supplier[]>('/suppliers').then(setSuppliers).catch(() => {}) }, [])
+
+  async function submitFabric() {
+    if (!fabricForm.reference.trim()) return
+    setSaving(true)
+    try {
+      await api.post('/fabric-requests', {
+        reference: fabricForm.reference.trim(),
+        supplier_id: fabricForm.supplier_id ? Number(fabricForm.supplier_id) : null,
+        quantity_meters: fabricForm.quantity_meters ? Number(fabricForm.quantity_meters) : null,
+        color: fabricForm.color || null,
+        development_id: item.id,
+      })
+      setFabricForm({ reference: '', supplier_id: '', quantity_meters: '', color: '' })
+      setAddingFabric(false)
+      setRefresh(v => v + 1)
+      toast('success', 'Pedido de malha registado e associado a este modelo.')
+    } finally { setSaving(false) }
+  }
 
   const index = PIPELINE.findIndex(([id]) => id === item.current_stage)
   const next = PIPELINE[Math.min(index + 1, PIPELINE.length - 1)]
@@ -90,17 +113,31 @@ export function DevelopmentModal({ item, labels, onClose, onMove, onStatus, onRe
         <div className="compact-pipeline">{PIPELINE.map(([id,label], i) => <button key={id} className={i < index ? 'done' : i === index ? 'active' : ''} onClick={() => onMove(id)}><span>{i+1}</span>{label}</button>)}</div>
         <section className="smart-panel"><div><Sparkles size={20}/><strong>Assistente do desenvolvimento</strong></div>{item.suggestions.length ? item.suggestions.map(text => <p key={text}>{text}</p>) : <p>O desenvolvimento está dentro do ritmo normal.</p>}</section>
         <section className="current-stage"><div className="section-title"><Layers3 size={18}/><strong>Fase atual</strong></div><div className="stage-focus"><div><small>ONDE ESTÁ</small><strong>{STAGE_LABELS[item.current_stage]}</strong></div><div><small>PRÓXIMA AÇÃO</small><strong>{item.next_action}</strong></div><div><small>MOTIVO DE ESPERA</small><strong>{item.waiting_reason || 'Sem bloqueios registados'}</strong></div></div></section>
-        {detail && detail.fabric_requests.length > 0 && <section className="history-section">
-          <div className="section-title"><Layers3 size={18}/><strong>Malhas deste modelo</strong></div>
-          <div className="history-list">{detail.fabric_requests.map(f => <div className="history-row" key={f.id}>
+        <section className="history-section">
+          <div className="section-title fabric-title">
+            <Scroll size={18}/><strong>Malhas deste modelo</strong>
+            <button className="team-action" onClick={() => setAddingFabric(v => !v)}>{addingFabric ? 'Cancelar' : '+ Pedir malha'}</button>
+          </div>
+          {addingFabric && <div className="fabric-quick-add">
+            <input placeholder="Referência *" value={fabricForm.reference} onChange={e => setFabricForm({ ...fabricForm, reference: e.target.value })}/>
+            <select value={fabricForm.supplier_id} onChange={e => setFabricForm({ ...fabricForm, supplier_id: e.target.value })}>
+              <option value="">Fornecedor...</option>
+              {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+            </select>
+            <input placeholder="Metros" type="number" step="0.5" min="0" value={fabricForm.quantity_meters} onChange={e => setFabricForm({ ...fabricForm, quantity_meters: e.target.value })}/>
+            <input placeholder="Cor" value={fabricForm.color} onChange={e => setFabricForm({ ...fabricForm, color: e.target.value })}/>
+            <button disabled={saving || !fabricForm.reference.trim()} onClick={() => void submitFabric()}>Pedir</button>
+          </div>}
+          {detail && detail.fabric_requests.length > 0 && <div className="history-list">{detail.fabric_requests.map(f => <div className="history-row" key={f.id}>
             <strong>{f.reference}{f.color ? ` · ${f.color}` : ''}{f.supplier_name ? ` — ${f.supplier_name}` : ''}</strong>
             <span>
               {{pedido: 'Pedido', envio_em_curso: 'Envio em curso', recebida: 'Recebida', tingimento: 'Tingimento', cancelada: 'Cancelada'}[f.status] || f.status}
               {f.days_pending != null ? ` · há ${f.days_pending} d` : ''}
               {f.needs_reminder ? ' · ⚠ relançar fornecedor' : ''}
             </span>
-          </div>)}</div>
-        </section>}
+          </div>)}</div>}
+          {detail && detail.fabric_requests.length === 0 && !addingFabric && <p className="empty-note">Ainda sem malhas pedidas para este modelo.</p>}
+        </section>
         <section className="history-section notes-section">
           <div className="section-title"><StickyNote size={18}/><strong>Notas</strong></div>
           <textarea
