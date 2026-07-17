@@ -20,6 +20,7 @@ class Development(Base):
     current_stage: Mapped[str] = mapped_column(String(50), default=Stage.NOVO.value, index=True)
     status: Mapped[str] = mapped_column(String(50), default=DevelopmentStatus.ACTIVE.value, index=True)
     waiting_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
     due_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     estimated_value: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), nullable=True)
     production_quantity: Mapped[int | None] = mapped_column(Integer, nullable=True)

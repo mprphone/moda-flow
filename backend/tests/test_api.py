@@ -53,6 +53,10 @@ def test_development_lifecycle(client, db_session):
     assert moved.status_code == 200
     assert moved.json()["current_stage"] == "ficha_tecnica"
 
+    noted = client.patch(f"/api/developments/{dev_id}", json={"description": "Malha 100% algodão, gramagem 180"}, headers=headers)
+    assert noted.status_code == 200
+    assert noted.json()["description"] == "Malha 100% algodão, gramagem 180"
+
     detail = client.get(f"/api/developments/{dev_id}", headers=headers)
     assert detail.status_code == 200
     body = detail.json()

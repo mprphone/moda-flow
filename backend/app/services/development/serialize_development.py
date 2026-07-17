@@ -17,6 +17,7 @@ def serialize_development(development: Development) -> dict:
         "current_stage": development.current_stage,
         "status": development.status,
         "waiting_reason": development.waiting_reason,
+        "description": development.description,
         "due_date": development.due_date,
         "estimated_value": float(development.estimated_value) if development.estimated_value is not None else None,
         "created_at": development.created_at,

@@ -14,6 +14,7 @@ export type Development = {
   current_stage: string
   status: string
   waiting_reason?: string
+  description?: string
   due_date?: string
   estimated_value?: number
   created_at: string

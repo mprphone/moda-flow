@@ -23,6 +23,7 @@ class DevelopmentMove(ORMModel):
 class QuickUpdate(ORMModel):
     status: str | None = None
     waiting_reason: str | None = None
+    description: str | None = None
     due_date: date | None = None
     estimated_value: float | None = None
     production_quantity: int | None = None

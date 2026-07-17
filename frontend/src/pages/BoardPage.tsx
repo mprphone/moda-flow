@@ -62,6 +62,11 @@ export function BoardPage({ refreshKey }: { refreshKey: number }) {
     toast('success', 'Comentário registado.')
   }
 
+  async function saveDescription(id: number, text: string) {
+    await updateItem(id, { description: text || null })
+    toast('success', 'Notas guardadas.')
+  }
+
   async function createProduction(id: number, quantity: number) {
     await api.post('/productions', { development_id: id, quantity })
     toast('success', 'Produção criada com sucesso.')
@@ -122,7 +127,8 @@ export function BoardPage({ refreshKey }: { refreshKey: number }) {
       onMove={(stage) => void move(selected.id, stage)}
       onStatus={(status, reason) => void updateItem(selected.id, { status, waiting_reason: reason || null })}
       onLabels={(labelIds) => void updateItem(selected.id, { label_ids: labelIds })}
-      onComment={(body) => void addComment(selected.id, body)}
+      onDescription={(text) => saveDescription(selected.id, text)}
+      onComment={(body) => addComment(selected.id, body)}
       onCreateProduction={(quantity) => void createProduction(selected.id, quantity)}
       onDelete={() => void removeDevelopment(selected.id)}
     />}
