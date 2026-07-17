@@ -47,3 +47,9 @@ def get_current_user(
     if not user or not user.is_active:
         raise HTTPException(status_code=401, detail="Utilizador inativo ou inexistente.")
     return user
+
+
+def require_admin(user=Depends(get_current_user)):
+    if user.role != "admin":
+        raise HTTPException(status_code=403, detail="Apenas administradores podem gerir a equipa.")
+    return user

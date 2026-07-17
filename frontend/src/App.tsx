@@ -8,6 +8,7 @@ import { TodayPage } from './pages/TodayPage'
 import { ShoppingPage } from './pages/ShoppingPage'
 import { PartnersPage } from './pages/PartnersPage'
 import { ProductionPage } from './pages/ProductionPage'
+import { TeamPage } from './pages/TeamPage'
 import { LoginPage } from './pages/LoginPage'
 import { AuthProvider, useAuth } from './auth'
 
@@ -30,6 +31,7 @@ function Shell() {
         {page === 'shopping' && <ShoppingPage/>}
         {page === 'partners' && <PartnersPage/>}
         {page === 'production' && <ProductionPage/>}
+        {page === 'team' && <TeamPage/>}
       </main>
     </div>
     {creating && <CreateDevelopmentModal onClose={() => setCreating(false)} onCreated={() => { setCreating(false); setPage('board'); setRefreshKey(v => v + 1) }}/>}

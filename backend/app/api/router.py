@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends
-from app.api.routes import auth, health, developments, clients, suppliers, dashboard, shopping, productions, labels, stats
+from app.api.routes import auth, health, developments, clients, suppliers, dashboard, shopping, productions, labels, stats, users
 from app.core.security import get_current_user
 
 api_router = APIRouter()
@@ -15,4 +15,5 @@ protected.include_router(shopping.router, prefix="/shopping", tags=["shopping"])
 protected.include_router(productions.router, prefix="/productions", tags=["productions"])
 protected.include_router(labels.router, prefix="/labels", tags=["labels"])
 protected.include_router(stats.router, prefix="/stats", tags=["stats"])
+protected.include_router(users.router, prefix="/users", tags=["users"])
 api_router.include_router(protected)

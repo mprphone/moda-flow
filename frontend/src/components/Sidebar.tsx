@@ -1,4 +1,4 @@
-import { LayoutDashboard, Columns3, Factory, ShoppingBag, UsersRound, Sparkles, type LucideIcon } from 'lucide-react'
+import { LayoutDashboard, Columns3, Factory, ShoppingBag, UsersRound, UserCog, Sparkles, type LucideIcon } from 'lucide-react'
 
 type Props = { active: string; onChange: (value: string) => void }
 
@@ -8,6 +8,7 @@ const items: Array<[string, string, LucideIcon]> = [
   ['production', 'Produções', Factory],
   ['shopping', 'Shopping', ShoppingBag],
   ['partners', 'Clientes e fornecedores', UsersRound],
+  ['team', 'Equipa', UserCog],
 ]
 
 export function Sidebar({ active, onChange }: Props) {

@@ -1,4 +1,5 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 from app.core.db import get_db
 from app.models.client import Client
@@ -16,7 +17,10 @@ def get_clients(db: Session = Depends(get_db)):
 
 @router.post("", status_code=201)
 def post_client(payload: ClientCreate, db: Session = Depends(get_db)):
-    item = Client(**payload.model_dump())
+    name = payload.name.strip()
+    if db.scalar(select(Client).where(func.lower(Client.name) == name.lower())):
+        raise HTTPException(status_code=409, detail="Já existe um cliente com esse nome.")
+    item = Client(**{**payload.model_dump(), "name": name})
     db.add(item)
     db.commit()
     db.refresh(item)

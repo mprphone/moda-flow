@@ -1,4 +1,5 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 from app.core.db import get_db
 from app.models.supplier import Supplier
@@ -16,7 +17,10 @@ def get_suppliers(db: Session = Depends(get_db)):
 
 @router.post("", status_code=201)
 def post_supplier(payload: SupplierCreate, db: Session = Depends(get_db)):
-    item = Supplier(**payload.model_dump())
+    name = payload.name.strip()
+    if db.scalar(select(Supplier).where(func.lower(Supplier.name) == name.lower())):
+        raise HTTPException(status_code=409, detail="Já existe um fornecedor com esse nome.")
+    item = Supplier(**{**payload.model_dump(), "name": name})
     db.add(item)
     db.commit()
     db.refresh(item)

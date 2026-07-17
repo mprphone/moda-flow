@@ -12,4 +12,6 @@
 .shopping-actions .danger{flex:0 0 38px;color:#b5375c}
 .priority-rank{width:30px;height:30px;border-radius:50%;background:#f0ecff;color:#6546b5;font-weight:800;display:grid;place-items:center}
 .empty-note{color:#7d8799;font-size:13px}
+.heading-actions{display:flex;gap:9px;align-items:center;flex-wrap:wrap}.heading-actions .action{width:auto;margin:0;display:flex;gap:7px;align-items:center}
+.team-list{max-width:760px}.team-meta{display:flex;justify-content:space-between;align-items:center;margin-top:10px;gap:9px;flex-wrap:wrap}.team-actions{display:flex;gap:7px;margin-left:auto}.team-actions button{border:1px solid var(--line);background:#fff;border-radius:9px;padding:7px 10px;font-size:12px;cursor:pointer}.inactive-user{opacity:.55}
 @media(max-width:650px){.app-shell{grid-template-columns:1fr}.sidebar{display:none}.stats-grid,.two-columns{grid-template-columns:1fr}.topbar{padding:0 10px}.primary-button{font-size:12px}.content-page,.board-page{padding:15px}}
