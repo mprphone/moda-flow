@@ -14,9 +14,9 @@ ARG VITE_API_URL=http://localhost:8000/api
 ENV VITE_API_URL=$VITE_API_URL
 RUN npm run build
 
-# Produção: serve os ficheiros estáticos na porta indicada pelo Railway ($PORT)
+# Produção: serve os ficheiros estáticos na porta fixa 5173 — no Railway, o domínio deve apontar para a 5173
 FROM node:22-alpine AS production
 WORKDIR /app
 RUN npm install -g serve
 COPY --from=build /app/dist ./dist
-CMD ["sh", "-c", "serve -s dist -l ${PORT:-5173}"]
+CMD ["serve", "-s", "dist", "-l", "5173"]
