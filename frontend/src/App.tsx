@@ -9,6 +9,7 @@ import { ShoppingPage } from './pages/ShoppingPage'
 import { PartnersPage } from './pages/PartnersPage'
 import { ProductionPage } from './pages/ProductionPage'
 import { TeamPage } from './pages/TeamPage'
+import { FabricsPage } from './pages/FabricsPage'
 import { LoginPage } from './pages/LoginPage'
 import { AuthProvider, useAuth } from './auth'
 
@@ -28,6 +29,7 @@ function Shell() {
       <main>
         {page === 'today' && <TodayPage/>}
         {page === 'board' && <BoardPage refreshKey={refreshKey}/>}
+        {page === 'fabrics' && <FabricsPage/>}
         {page === 'shopping' && <ShoppingPage/>}
         {page === 'partners' && <PartnersPage/>}
         {page === 'production' && <ProductionPage/>}

@@ -7,5 +7,6 @@ from app.models.shopping import ShoppingPurchase
 from app.models.production import Production
 from app.models.user import User
 from app.models.label import Label
+from app.models.fabric_request import FabricRequest
 
-__all__ = ["Client", "Supplier", "Development", "StageEvent", "Comment", "ShoppingPurchase", "Production", "User", "Label"]
+__all__ = ["Client", "Supplier", "Development", "StageEvent", "Comment", "ShoppingPurchase", "Production", "User", "Label", "FabricRequest"]

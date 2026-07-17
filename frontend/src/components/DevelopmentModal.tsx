@@ -89,6 +89,17 @@ export function DevelopmentModal({ item, labels, onClose, onMove, onStatus, onLa
         <div className="compact-pipeline">{PIPELINE.map(([id,label], i) => <button key={id} className={i < index ? 'done' : i === index ? 'active' : ''} onClick={() => onMove(id)}><span>{i+1}</span>{label}</button>)}</div>
         <section className="smart-panel"><div><Sparkles size={20}/><strong>Assistente do desenvolvimento</strong></div>{item.suggestions.length ? item.suggestions.map(text => <p key={text}>{text}</p>) : <p>O desenvolvimento está dentro do ritmo normal.</p>}</section>
         <section className="current-stage"><div className="section-title"><Layers3 size={18}/><strong>Fase atual</strong></div><div className="stage-focus"><div><small>ONDE ESTÁ</small><strong>{STAGE_LABELS[item.current_stage]}</strong></div><div><small>PRÓXIMA AÇÃO</small><strong>{item.next_action}</strong></div><div><small>MOTIVO DE ESPERA</small><strong>{item.waiting_reason || 'Sem bloqueios registados'}</strong></div></div></section>
+        {detail && detail.fabric_requests.length > 0 && <section className="history-section">
+          <div className="section-title"><Layers3 size={18}/><strong>Malhas deste modelo</strong></div>
+          <div className="history-list">{detail.fabric_requests.map(f => <div className="history-row" key={f.id}>
+            <strong>{f.reference}{f.color ? ` · ${f.color}` : ''}{f.supplier_name ? ` — ${f.supplier_name}` : ''}</strong>
+            <span>
+              {{pedido: 'Pedido', envio_em_curso: 'Envio em curso', recebida: 'Recebida', tingimento: 'Tingimento', cancelada: 'Cancelada'}[f.status] || f.status}
+              {f.days_pending != null ? ` · há ${f.days_pending} d` : ''}
+              {f.needs_reminder ? ' · ⚠ relançar fornecedor' : ''}
+            </span>
+          </div>)}</div>
+        </section>}
         <section className="history-section notes-section">
           <div className="section-title"><StickyNote size={18}/><strong>Notas</strong></div>
           <textarea

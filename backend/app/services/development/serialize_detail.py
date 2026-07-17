@@ -1,7 +1,10 @@
-from sqlalchemy.orm import Session
+from sqlalchemy import select
+from sqlalchemy.orm import Session, joinedload
 from app.core.timeutil import utcnow
+from app.models.fabric_request import FabricRequest
 from app.services.analytics.stage_stats import average_stage_durations, estimate_completion
 from app.services.development.serialize_development import serialize_development
+from app.services.fabrics.serialize_request import serialize_request
 
 
 def serialize_detail(db: Session, development) -> dict:
@@ -26,4 +29,11 @@ def serialize_detail(db: Session, development) -> dict:
         {"id": c.id, "author": c.author, "body": c.body, "category": c.category, "created_at": c.created_at}
         for c in sorted(development.comments, key=lambda c: c.created_at, reverse=True)
     ]
+    fabric_stmt = (
+        select(FabricRequest)
+        .where(FabricRequest.development_id == development.id)
+        .options(joinedload(FabricRequest.supplier), joinedload(FabricRequest.development))
+        .order_by(FabricRequest.requested_at.desc())
+    )
+    data["fabric_requests"] = [serialize_request(item) for item in db.scalars(fabric_stmt).unique().all()]
     return data

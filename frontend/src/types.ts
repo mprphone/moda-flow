@@ -41,11 +41,37 @@ export type StageHistoryItem = {
   supplier_name?: string
 }
 
+export type FabricRequest = {
+  id: number
+  reference: string
+  article?: string
+  composition?: string
+  width?: string
+  grammage?: string
+  color?: string
+  quantity_meters?: number
+  price_per_meter?: number
+  leadtime?: string
+  notes?: string
+  cover_url?: string
+  status: string
+  supplier_id?: number
+  supplier_name?: string
+  development_id?: number
+  development_code?: string
+  requested_at: string
+  received_at?: string
+  days_pending?: number
+  days_to_receive?: number
+  needs_reminder: boolean
+}
+
 export type DevelopmentDetail = Development & {
   stage_history: StageHistoryItem[]
   estimated_completion?: string
   eta_at_risk: boolean
   comments: CommentItem[]
+  fabric_requests: FabricRequest[]
 }
 
 export type Client = { id: number; name: string; group_name?: string }
