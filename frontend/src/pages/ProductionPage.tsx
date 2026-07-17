@@ -36,19 +36,32 @@ function ProductionCard({ item }: { item: Production }) {
 
 function ProductionColumn({ id, title, items }: { id: string; title: string; items: Production[] }) {
   const { setNodeRef, isOver } = useDroppable({ id })
+  const [limit, setLimit] = useState(25)
   return <section ref={setNodeRef} className={`board-column ${isOver ? 'is-over' : ''}`}>
     <div className="column-header"><strong>{title}</strong><span>{items.length}</span></div>
-    <div className="column-cards">{items.map(item => <ProductionCard key={item.id} item={item}/>)}</div>
+    <div className="column-cards">{items.slice(0, limit).map(item => <ProductionCard key={item.id} item={item}/>)}</div>
+    {items.length > limit && <button className="add-card" onClick={() => setLimit(v => v + 100)}>Mostrar mais {items.length - limit} cartões...</button>}
   </section>
 }
 
 export function ProductionPage() {
   const [data, setData] = useState<Response>({ stages: [], items: [] })
+  const [query, setQuery] = useState('')
+  const [clientFilter, setClientFilter] = useState('')
   useEffect(() => { void api.get<Response>('/productions').then(setData) }, [])
 
+  const clients = useMemo(() => [...new Set(data.items.map(item => item.client_name))].sort(), [data])
+
+  const visible = useMemo(() => data.items.filter(item => {
+    const text = `${item.development_code || ''} ${item.title || ''} ${item.client_name}`.toLowerCase()
+    if (query && !text.includes(query.toLowerCase())) return false
+    if (clientFilter && item.client_name !== clientFilter) return false
+    return true
+  }), [data, query, clientFilter])
+
   const grouped = useMemo(
-    () => Object.fromEntries(data.stages.map(stage => [stage, data.items.filter(item => item.status === stage)])),
-    [data],
+    () => Object.fromEntries(data.stages.map(stage => [stage, visible.filter(item => item.status === stage)])),
+    [data.stages, visible],
   )
 
   async function move(id: number, status: string) {
@@ -76,6 +89,14 @@ export function ProductionPage() {
         <h1>Pipeline de produções</h1>
         <p>Arraste cada produção pelas fases. As produções nascem da amostra aprovada no quadro de desenvolvimento.</p>
       </div>
+    </div>
+    <div className="filter-bar">
+      <input placeholder="Pesquisar modelo ou referência..." value={query} onChange={e => setQuery(e.target.value)}/>
+      <select value={clientFilter} onChange={e => setClientFilter(e.target.value)}>
+        <option value="">Todos os clientes</option>
+        {clients.map(name => <option key={name} value={name}>{name}</option>)}
+      </select>
+      {(query || clientFilter) && <button className="clear-filters" onClick={() => { setQuery(''); setClientFilter('') }}>Limpar</button>}
     </div>
     <DndContext onDragEnd={handleDragEnd}>
       <div className="board-scroll">

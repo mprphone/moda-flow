@@ -19,6 +19,7 @@ class ShoppingUpdate(ORMModel):
     refund_received: bool | None = None
     return_deadline: date | None = None
     invoice_number: str | None = None
+    cover_url: str | None = None
 
 
 class ShoppingOut(ShoppingCreate):

@@ -38,7 +38,22 @@ export function PartnersPage() {
     load()
   }
 
-  const Card = ({ item, type }: { item: Score; type: 'client' | 'supplier' }) => <article className="score-card"><div className="score-icon">{type === 'client' ? <Building2/> : <Factory/>}</div><div className="score-content"><div className="score-head"><div><h3>{item.name}</h3><p>{item.summary}</p></div><div className={`grade grade-${item.grade}`}>{item.grade}</div></div><div className="score-bar"><span style={{width:`${item.score}%`}}></span></div><div className="score-metrics">{type === 'client' ? <><span>Aprovação <b>{item.approval_rate}%</b></span><span>Versões médias <b>{item.average_versions}</b></span></> : <><span>No prazo <b>{item.on_time_rate}%</b></span><span>Pedidos ativos <b>{item.active_requests}</b></span></>}</div></div></article>
+  const Card = ({ item, type }: { item: Score; type: 'client' | 'supplier' }) => <article className="score-card">
+    <div className="score-icon">{type === 'client' ? <Building2/> : <Factory/>}</div>
+    <div className="score-content">
+      <div className="score-head"><div><h3>{item.name}</h3><p>{item.summary}</p></div><div className={`grade grade-${item.grade}`}>{item.grade}</div></div>
+      <div className="score-bar"><span style={{width:`${item.score}%`}}></span></div>
+      <div className="score-metrics">
+        {type === 'client'
+          ? <><span>Modelos <b>{item.total_developments ?? '—'}</b></span><span>Aprovação <b>{item.approval_rate}%</b></span><span>Cancela/reprova <b>{item.cancel_rate ?? 0}%</b></span></>
+          : <><span>No prazo <b>{item.on_time_rate}%</b></span><span>Pedidos ativos <b>{item.active_requests}</b></span>{(item.fabric_total ?? 0) > 0 && <span>Malhas <b>{item.fabric_total}</b>{item.fabric_avg_days != null && <> · entrega ~<b>{item.fabric_avg_days} d</b></>}</span>}</>}
+      </div>
+      {type === 'client' && (item.tastes?.length || item.avoids?.length) ? <div className="taste-row">
+        {item.tastes && item.tastes.length > 0 && <span className="taste-group">Gosta: {item.tastes.map(word => <em className="chip tone-mint" key={word}>{word}</em>)}</span>}
+        {item.avoids && item.avoids.length > 0 && <span className="taste-group">Rejeita: {item.avoids.map(word => <em className="chip tone-pink" key={word}>{word}</em>)}</span>}
+      </div> : null}
+    </div>
+  </article>
 
   return <div className="content-page">
     <div className="page-heading">

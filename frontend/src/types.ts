@@ -88,6 +88,13 @@ export type Score = {
   average_versions?: number
   average_delay_days?: number
   active_requests?: number
+  total_developments?: number
+  cancel_rate?: number
+  tastes?: string[]
+  avoids?: string[]
+  fabric_total?: number
+  fabric_avg_days?: number | null
+  fabric_cancel_rate?: number
 }
 
 export type ShoppingPurchase = {

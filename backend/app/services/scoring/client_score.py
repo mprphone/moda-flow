@@ -1,13 +1,18 @@
 from sqlalchemy.orm import Session
 from app.core.enums import Stage
 from app.models.client import Client
+from app.services.scoring.tastes import taste_keywords
+
+CLOSED = {"cancelled", "rejected"}
 
 
 def calculate_client_score(db: Session, client: Client) -> dict:
     developments = client.developments
     total = len(developments)
     approved = sum(1 for item in developments if item.current_stage == Stage.APROVADO.value)
+    cancelled = sum(1 for item in developments if item.status in CLOSED)
     approval_rate = approved / total if total else 0
+    cancel_rate = cancelled / total if total else 0
 
     version_counts = []
     first_sample_approved = 0
@@ -36,5 +41,9 @@ def calculate_client_score(db: Session, client: Client) -> dict:
         "approval_rate": round(approval_rate * 100, 1),
         "first_sample_rate": round(first_sample_rate * 100, 1),
         "average_versions": round(average_versions, 1),
+        "total_developments": total,
+        "cancel_rate": round(cancel_rate * 100, 1),
+        "tastes": taste_keywords([item.title for item in developments if item.status not in CLOSED]),
+        "avoids": taste_keywords([item.title for item in developments if item.status in CLOSED], limit=3),
         "summary": summary,
     }

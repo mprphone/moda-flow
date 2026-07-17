@@ -36,8 +36,12 @@ export function BoardPage({ refreshKey }: { refreshKey: number }) {
     return true
   }), [items, query, clientFilter, riskFilter, labelFilter])
 
-  const rejected = useMemo(() => filtered.filter(item => item.status === 'rejected'), [filtered])
-  const active = useMemo(() => filtered.filter(item => item.status !== 'rejected'), [filtered])
+  // Arquivo: reprovados, cancelados e amostras enviadas (concluídas fora da coluna Aprovado)
+  const isArchived = (item: Development) =>
+    item.status === 'rejected' || item.status === 'cancelled' || (item.status === 'completed' && item.current_stage !== 'aprovado')
+  const rejected = useMemo(() => filtered.filter(isArchived), [filtered])
+  const active = useMemo(() => filtered.filter(item => !isArchived(item)), [filtered])
+  const [archiveLimit, setArchiveLimit] = useState(50)
   const isPhaseOne = (stage: string) => (PHASE_ONE_IDS as readonly string[]).includes(stage)
   const designCount = active.filter(item => isPhaseOne(item.current_stage)).length
   const sampleCount = active.filter(item => !isPhaseOne(item.current_stage)).length
@@ -126,7 +130,7 @@ export function BoardPage({ refreshKey }: { refreshKey: number }) {
     <div className="phase-tabs">
       <button className={phase === 'design' ? 'active' : ''} onClick={() => setPhase('design')}><PencilRuler size={15}/>1 · Propostas <span>{designCount}</span></button>
       <button className={phase === 'sample' ? 'active' : ''} onClick={() => setPhase('sample')}><Shirt size={15}/>2 · Amostra física <span>{sampleCount}</span></button>
-      <button className={phase === 'rejected' ? 'active' : ''} onClick={() => setPhase('rejected')}><Archive size={15}/>Reprovados <span>{rejected.length}</span></button>
+      <button className={phase === 'rejected' ? 'active' : ''} onClick={() => setPhase('rejected')}><Archive size={15}/>Arquivo <span>{rejected.length}</span></button>
     </div>
     <div className="filter-bar">
       <Filter size={16}/>
@@ -153,18 +157,22 @@ export function BoardPage({ refreshKey }: { refreshKey: number }) {
       </div>
     </DndContext>}
     {phase === 'rejected' && <div className="rejected-list">
-      {rejected.length === 0 && <p className="empty-note">Sem propostas reprovadas. Boa!</p>}
-      {rejected.map(item => <article className="fabric-row" key={item.id}>
+      {rejected.length === 0 && <p className="empty-note">Arquivo vazio.</p>}
+      {rejected.slice(0, archiveLimit).map(item => <article className="fabric-row" key={item.id}>
         {item.cover_url && <img src={item.cover_url} alt=""/>}
         <div className="fabric-main">
-          <strong>{item.code} — {item.title}</strong>
+          <strong>{item.code}{item.title !== item.code ? ` — ${item.title}` : ''}</strong>
           <span>{item.client_name} · {item.owner_name}</span>
           {item.waiting_reason && <em>{item.waiting_reason}</em>}
         </div>
-        <div className="fabric-actions">
+        <div className="fabric-side">
+          <span className={`chip ${item.status === 'completed' ? 'tone-mint' : 'tone-pink'}`}>
+            {item.status === 'completed' ? 'Amostra enviada' : item.status === 'cancelled' ? 'Cancelado' : 'Reprovado'}
+          </span>
           <button className="team-action" onClick={() => void reactivate(item.id)}><RotateCcw size={14}/> Reativar</button>
         </div>
       </article>)}
+      {rejected.length > archiveLimit && <button className="clear-filters" onClick={() => setArchiveLimit(v => v + 200)}>Mostrar mais {rejected.length - archiveLimit}...</button>}
     </div>}
     {selected && <DevelopmentModal
       item={selected}
