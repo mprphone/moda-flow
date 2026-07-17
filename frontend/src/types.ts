@@ -107,8 +107,9 @@ export type ShoppingPurchase = {
 
 export type Production = {
   id: number
-  development_id: number
-  development_code: string
+  development_id?: number
+  development_code?: string
+  title?: string
   client_name: string
   quantity: number
   status: string

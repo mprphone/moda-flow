@@ -14,6 +14,7 @@ const STAGE_NAMES: Record<string, string> = {
   confecao: 'Confeção',
   controlo_qualidade: 'Controlo qualidade',
   expedida: 'Expedida',
+  cancelada: 'Cancelada',
 }
 
 function ProductionCard({ item }: { item: Production }) {
@@ -21,10 +22,11 @@ function ProductionCard({ item }: { item: Production }) {
   const style = transform ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` } : undefined
   return <article ref={setNodeRef} style={style} className="development-card production-card" {...listeners} {...attributes}>
     <div className="card-body">
-      <div className="card-title">{item.development_code}</div>
+      <div className="card-title">{item.development_code || item.title}</div>
+      {item.development_code && item.title && <div className="card-subtitle">{item.title}</div>}
       <div className="card-subtitle">{item.client_name}</div>
       <div className="production-meta">
-        <span><Package size={13}/>{item.quantity} un.</span>
+        {item.quantity > 0 && <span><Package size={13}/>{item.quantity} un.</span>}
         {item.due_date && <span><CalendarDays size={13}/>{item.due_date}</span>}
         {item.responsible_name && <span><UserRound size={13}/>{item.responsible_name}</span>}
       </div>
