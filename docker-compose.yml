@@ -23,6 +23,7 @@ services:
       SECRET_KEY: ${SECRET_KEY:-modaflow-dev-secret-change-me-0123456789abcdef}
       SEED_USER_PASSWORD: ${SEED_USER_PASSWORD:-ModaFlow2026!}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173,http://127.0.0.1:5173}
+      PUBLIC_URL: ${PUBLIC_URL:-http://localhost:8000}
     depends_on:
       db:
         condition: service_healthy

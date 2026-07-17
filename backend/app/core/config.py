@@ -21,6 +21,10 @@ class Settings(BaseSettings):
     seed_user_password: str = "ModaFlow2026!"
     # Origens permitidas no CORS, separadas por vírgula (env CORS_ORIGINS).
     cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
+    # URL público do backend — usado para construir os links das imagens carregadas (env PUBLIC_URL).
+    public_url: str = "http://localhost:8000"
+    # Pasta onde ficam as imagens carregadas; no Railway deve ter um Volume montado (env UPLOAD_DIR).
+    upload_dir: str = "uploads"
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
 

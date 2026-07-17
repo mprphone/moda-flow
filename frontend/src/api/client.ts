@@ -45,9 +45,27 @@ async function request<T>(path: string, options?: RequestInit, silent = false): 
   return response.json()
 }
 
+async function upload(file: File): Promise<{ url: string }> {
+  const token = getToken()
+  const body = new FormData()
+  body.append('file', file)
+  const response = await fetch(`${API_URL}/uploads`, {
+    method: 'POST',
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    body,
+  })
+  if (!response.ok) {
+    const detail = extractDetail(await response.text())
+    toast('error', detail)
+    throw new Error(detail)
+  }
+  return response.json()
+}
+
 export const api = {
   get: <T>(path: string) => request<T>(path),
   post: <T>(path: string, body: unknown, silent = false) => request<T>(path, { method: 'POST', body: JSON.stringify(body) }, silent),
   patch: <T>(path: string, body: unknown) => request<T>(path, { method: 'PATCH', body: JSON.stringify(body) }),
   del: (path: string) => request<void>(path, { method: 'DELETE' }),
+  upload,
 }

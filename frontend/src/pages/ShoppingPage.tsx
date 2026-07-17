@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { CheckCircle2, FileWarning, RotateCcw, Trash2, X } from 'lucide-react'
 import { api } from '../api/client'
 import { toast } from '../lib/toast'
+import { UploadInput } from '../components/UploadInput'
 import type { ShoppingPurchase } from '../types'
 
 const EMPTY_FORM = { brand: '', reference: '', amount: '', purchase_date: '', return_deadline: '', invoice_number: '', cover_url: '' }
@@ -74,7 +75,7 @@ export function ShoppingPage() {
         <label>Data de compra<input required type="date" value={form.purchase_date} onChange={e => setForm({ ...form, purchase_date: e.target.value })}/></label>
         <label>Prazo de devolução<input type="date" value={form.return_deadline} onChange={e => setForm({ ...form, return_deadline: e.target.value })}/></label>
         <label>Nº fatura<input value={form.invoice_number} onChange={e => setForm({ ...form, invoice_number: e.target.value })}/></label>
-        <label>Imagem (URL)<input value={form.cover_url} onChange={e => setForm({ ...form, cover_url: e.target.value })}/></label>
+        <UploadInput value={form.cover_url} onChange={url => setForm({ ...form, cover_url: url })} label="Fotografia da peça"/>
         <button className="primary-button" type="submit">Guardar compra</button>
       </form>
     </div>}

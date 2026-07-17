@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { AlertTriangle, Scroll, Trash2, X } from 'lucide-react'
 import { api } from '../api/client'
 import { toast } from '../lib/toast'
-import type { Client, Development, FabricRequest, Supplier } from '../types'
+import { UploadInput } from '../components/UploadInput'
+import type { Development, FabricRequest, Supplier } from '../types'
 
 type Response = { statuses: string[]; items: FabricRequest[] }
 
@@ -176,7 +177,7 @@ export function FabricsPage() {
           <label>Data do pedido<input type="date" value={form.requested_at} onChange={e => setForm({ ...form, requested_at: e.target.value })}/></label>
         </div>
         <label>Notas<input value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} placeholder="pedido por whatsapp: 4 mts na cor de cartaz"/></label>
-        <label>Imagem (URL)<input value={form.cover_url} onChange={e => setForm({ ...form, cover_url: e.target.value })}/></label>
+        <UploadInput value={form.cover_url} onChange={url => setForm({ ...form, cover_url: url })} label="Fotografia da malha / etiqueta"/>
         <button className="primary-button" type="submit">Registar pedido</button>
       </form>
     </div>}
