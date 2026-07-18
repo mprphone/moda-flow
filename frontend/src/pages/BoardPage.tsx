@@ -70,7 +70,7 @@ export function BoardPage({ refreshKey }: { refreshKey: number }) {
       // aprovação do cliente na fase de proposta: o cartão salta sozinho para a amostra
       if (stage === 'ficha_tecnica' && phase === 'design') {
         setPhase('sample')
-        toast('success', 'Proposta aprovada pelo cliente — passou para a amostra física.')
+        toast('success', 'Proposta aprovada pelo cliente — passou para o desenvolvimento de amostras.')
       }
     } catch {
       setItems(previous)
@@ -127,8 +127,8 @@ export function BoardPage({ refreshKey }: { refreshKey: number }) {
   return <div className="board-page">
     <div className="page-heading">
       <div>
-        <h1>Desenvolvimento de modelos</h1>
-        <p>Fase 1: desenho e proposta. Quando o cliente aprova, o cartão passa sozinho para a amostra física.</p>
+        <h1>Portefólio &amp; Modelos</h1>
+        <p>Fase 1: desenho e proposta. Quando o cliente aprova, o cartão passa sozinho para o desenvolvimento de amostras.</p>
       </div>
       <div className="board-legend">
         <span className="mint">Concluído</span><span className="sky">Em curso</span><span className="yellow">Aguarda</span><span className="pink">Atraso</span>
@@ -136,7 +136,7 @@ export function BoardPage({ refreshKey }: { refreshKey: number }) {
     </div>
     <div className="phase-tabs">
       <button className={phase === 'design' ? 'active' : ''} onClick={() => setPhase('design')}><PencilRuler size={15}/>1 · Propostas <span>{designCount}</span></button>
-      <button className={phase === 'sample' ? 'active' : ''} onClick={() => setPhase('sample')}><Shirt size={15}/>2 · Amostra física <span>{sampleCount}</span></button>
+      <button className={phase === 'sample' ? 'active' : ''} onClick={() => setPhase('sample')}><Shirt size={15}/>2 · Desenvolvimento de amostras <span>{sampleCount}</span></button>
       <button className={phase === 'client' ? 'active' : ''} onClick={() => setPhase('client')}><Building2 size={15}/>Por cliente <span>{active.length}</span></button>
       <button className={phase === 'rejected' ? 'active' : ''} onClick={() => setPhase('rejected')}><Archive size={15}/>Arquivo <span>{rejected.length}</span></button>
     </div>

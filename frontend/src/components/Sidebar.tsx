@@ -4,9 +4,9 @@ type Props = { active: string; onChange: (value: string) => void }
 
 const items: Array<[string, string, LucideIcon]> = [
   ['today', 'Hoje', LayoutDashboard],
-  ['board', 'Desenvolvimento', Columns3],
+  ['board', 'Portefólio & Modelos', Columns3],
   ['fabrics', 'Malhas', Scroll],
-  ['production', 'Produções', Factory],
+  ['production', 'Produções industriais', Factory],
   ['shopping', 'Shopping', ShoppingBag],
   ['partners', 'Clientes e fornecedores', UsersRound],
   ['team', 'Equipa', UserCog],

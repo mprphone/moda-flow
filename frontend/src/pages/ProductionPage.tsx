@@ -163,8 +163,8 @@ export function ProductionPage() {
   return <div className="board-page">
     <div className="page-heading">
       <div>
-        <h1>Produções</h1>
-        <p>{view === 'fase' ? 'Arraste pelas fases. Clique abre a ficha.' : 'Vista por cliente, como o quadro do Trello. Clique abre a ficha.'}</p>
+        <h1>Produções industriais</h1>
+        <p>{view === 'fase' ? 'Encomendas em produção. Arraste pelas fases. Clique abre a ficha.' : 'Vista por cliente. Clique abre a ficha.'}</p>
       </div>
     </div>
     <div className="phase-tabs">
@@ -189,7 +189,7 @@ export function ProductionPage() {
         <button type="button" className="modal-close" onClick={() => setSelected(null)}><X/></button>
         <div className="modal-main">
           <div className="modal-content">
-            <div className="eyebrow">{selected.client_name} · Produção</div>
+            <div className="eyebrow">{selected.client_name} · Produção industrial</div>
             <h2>{selected.development_code || selected.title}{selected.development_code && selected.title ? ` — ${selected.title}` : ''}</h2>
             <div className="production-form-grid">
               <label>Estado<select value={selected.status} onChange={e => void patchProduction(selected.id, { status: e.target.value }, 'Estado atualizado.')}>
