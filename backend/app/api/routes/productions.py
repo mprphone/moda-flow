@@ -87,6 +87,8 @@ def serialize_production(item: Production) -> dict:
         "due_date": item.due_date,
         "responsible_name": item.responsible_name,
         "description": item.description,
+        "source_created_at": item.source_created_at,
+        "trello_card_id": item.trello_card_id,
     }
 
 

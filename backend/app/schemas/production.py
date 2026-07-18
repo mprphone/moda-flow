@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime
 from app.schemas.common import ORMModel
 
 
@@ -21,6 +21,8 @@ class ProductionUpdate(ORMModel):
     development_id: int | None = None
     title: str | None = None
     description: str | None = None
+    source_created_at: datetime | None = None
+    trello_card_id: str | None = None
 
 
 class ProductionOut(ProductionCreate):
@@ -28,3 +30,5 @@ class ProductionOut(ProductionCreate):
     status: str
     development_code: str
     client_name: str
+    source_created_at: datetime | None = None
+    trello_card_id: str | None = None

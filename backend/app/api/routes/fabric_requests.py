@@ -87,6 +87,7 @@ class FabricRequestCreate(ORMModel):
     expected_at: date | None = None
     supplier_confirmed_at: date | None = None
     label_ids: list[int] | None = None
+    trello_card_id: str | None = None
 
 
 class FabricRequestUpdate(FabricRequestCreate):

@@ -16,6 +16,7 @@ class UserCreate(ORMModel):
     email: str | None = None
     password: str | None = None
     role: str = "designer"
+    phone: str | None = None
 
 
 class UserUpdate(ORMModel):
@@ -24,6 +25,7 @@ class UserUpdate(ORMModel):
     is_active: bool | None = None
     password: str | None = None
     email: str | None = None
+    phone: str | None = None
 
 
 def serialize_user(user: User) -> dict:
@@ -33,6 +35,7 @@ def serialize_user(user: User) -> dict:
         "email": user.email,
         "role": user.role,
         "is_active": user.is_active,
+        "phone": user.phone,
         "created_at": user.created_at,
     }
 
@@ -53,7 +56,7 @@ def post_user(payload: UserCreate, db: Session = Depends(get_db)):
         raise HTTPException(status_code=409, detail="Já existe um utilizador com esse email.")
     if bool(email) != bool(payload.password):
         raise HTTPException(status_code=422, detail="Para dar acesso, indique email e palavra-passe.")
-    user = User(name=payload.name.strip(), email=email, password_hash=hash_password(payload.password) if payload.password else None, role=payload.role, is_active=bool(email and payload.password))
+    user = User(name=payload.name.strip(), email=email, password_hash=hash_password(payload.password) if payload.password else None, role=payload.role, is_active=bool(email and payload.password), phone=(payload.phone.strip() or None) if payload.phone else None)
     db.add(user)
     db.commit()
     db.refresh(user)

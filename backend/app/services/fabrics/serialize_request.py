@@ -50,6 +50,7 @@ def serialize_request(item: FabricRequest) -> dict:
         "expected_at": item.expected_at,
         "supplier_confirmed_at": item.supplier_confirmed_at,
         "received_at": item.received_at,
+        "trello_card_id": item.trello_card_id,
         "labels": [{"id": label.id, "name": label.name, "tone": label.tone} for label in item.labels],
         "days_pending": days_pending,
         "days_to_receive": days_to_receive,

@@ -5,23 +5,47 @@ import { useAuth } from '../auth'
 import { toast } from '../lib/toast'
 import type { TeamUser } from '../types'
 
-const EMPTY_FORM = { name: '', email: '', password: '', role: 'designer' }
+const EMPTY_FORM = { name: '', email: '', password: '', phone: '', role: 'designer' }
 
 export function TeamPage() {
   const { user } = useAuth()
   const isAdmin = user?.role === 'admin'
   const [items, setItems] = useState<TeamUser[]>([])
   const [creating, setCreating] = useState(false)
+  const [editingId, setEditingId] = useState<number | null>(null)
   const [form, setForm] = useState(EMPTY_FORM)
   const load = () => api.get<TeamUser[]>('/users').then(setItems)
   useEffect(() => { void load() }, [])
 
+  function openNew() {
+    setEditingId(null)
+    setForm(EMPTY_FORM)
+    setCreating(true)
+  }
+  function editUser(item: TeamUser) {
+    setEditingId(item.id)
+    setForm({ name: item.name, email: item.email || '', password: '', phone: item.phone || '', role: item.role })
+    setCreating(true)
+  }
+  function closeModal() { setCreating(false); setEditingId(null); setForm(EMPTY_FORM) }
+
   async function submit(e: React.FormEvent) {
     e.preventDefault()
-    await api.post('/users', form)
-    setCreating(false)
-    setForm(EMPTY_FORM)
-    toast('success', 'Conta criada. Partilhe o email e a palavra-passe com a colega.')
+    const payload = {
+      name: form.name,
+      email: form.email || null,
+      phone: form.phone || null,
+      role: form.role,
+      ...(form.password ? { password: form.password } : {}),
+    }
+    if (editingId) {
+      await api.patch(`/users/${editingId}`, { ...payload, ...(form.email && form.password ? { is_active: true } : {}) })
+      toast('success', 'Ficha atualizada.')
+    } else {
+      await api.post('/users', payload)
+      toast('success', form.email ? 'Conta criada. Partilhe o acesso com a colega.' : 'Ficha pendente criada.')
+    }
+    closeModal()
     void load()
   }
 
@@ -36,25 +60,6 @@ export function TeamPage() {
     if (!password) return
     await api.patch(`/users/${item.id}`, { password })
     toast('success', 'Palavra-passe alterada. Comunique-a à colega.')
-  }
-
-  async function setupAccess(item: TeamUser) {
-    const email = window.prompt(`Email de acesso para ${item.name}:`, item.email || '')
-    if (!email) return
-    const password = window.prompt('Palavra-passe inicial (mínimo 8 carateres):')
-    if (!password) return
-    await api.patch(`/users/${item.id}`, { email, password, is_active: true })
-    toast('success', `Acesso de ${item.name} ativado.`)
-    void load()
-  }
-
-  async function editUser(item: TeamUser) {
-    const name = window.prompt('Nome:', item.name)
-    if (!name) return
-    const email = window.prompt('Email (pode ficar vazio enquanto a ficha estiver pendente):', item.email || '')
-    if (email === null) return
-    await api.patch(`/users/${item.id}`, { name, email: email || null })
-    toast('success', 'Ficha atualizada.'); void load()
   }
 
   async function deleteUser(item: TeamUser) {
@@ -77,7 +82,7 @@ export function TeamPage() {
       <div><h1>Equipa</h1><p>Todas as contas veem toda a informação. A gestão de contas é feita pela administradora.</p></div>
       <div className="heading-actions">
         <button className="action" onClick={() => void changeMyPassword()}><KeyRound size={15}/> Alterar a minha palavra-passe</button>
-        {isAdmin && <button className="primary-button" onClick={() => setCreating(true)}><UserPlus size={17}/>Nova conta</button>}
+        {isAdmin && <button className="primary-button" onClick={openNew}><UserPlus size={17}/>Nova conta</button>}
       </div>
     </div>
     <div className="score-list team-list">
@@ -92,11 +97,12 @@ export function TeamPage() {
             <span className={`chip ${item.role === 'admin' ? 'tone-lilac' : 'tone-sky'}`}>{item.role === 'admin' ? 'Administradora' : 'Designer'}</span>
           </div>
           <div className="team-meta">
+            {item.phone && <span className="team-phone">📞 {item.phone}</span>}
             {!item.email && <span className="chip tone-yellow">Ficha pendente · sem acesso</span>}
             {item.email && !item.is_active && <span className="chip tone-pink">Conta desativada</span>}
             {isAdmin && <div className="team-actions">
-              <button title="Editar ficha" onClick={() => void editUser(item)}><Pencil size={14}/> Editar</button>
-              {!item.email ? <button onClick={() => void setupAccess(item)}>Completar email e acesso</button> : <button onClick={() => void resetPassword(item)}>Repor palavra-passe</button>}
+              <button title="Editar ficha" onClick={() => editUser(item)}><Pencil size={14}/> Editar</button>
+              {item.email && <button onClick={() => void resetPassword(item)}>Repor palavra-passe</button>}
               {item.email && item.id !== user?.id && <button onClick={() => void toggleActive(item)}>{item.is_active ? 'Desativar' : 'Reativar'}</button>}
               {item.id !== user?.id && <button className="danger" title="Eliminar ficha" onClick={() => void deleteUser(item)}><Trash2 size={14}/> Eliminar</button>}
             </div>}
@@ -104,19 +110,20 @@ export function TeamPage() {
         </div>
       </article>)}
     </div>
-    {creating && <div className="modal-backdrop" onMouseDown={() => setCreating(false)}>
+    {creating && <div className="modal-backdrop" onMouseDown={closeModal}>
       <form className="create-modal" onSubmit={submit} onMouseDown={e => e.stopPropagation()}>
-        <button type="button" className="modal-close" onClick={() => setCreating(false)}><X/></button>
-        <h2>Nova conta da equipa</h2>
-        <p>A colega entra com este email e palavra-passe, e pode depois alterá-la.</p>
+        <button type="button" className="modal-close" onClick={closeModal}><X/></button>
+        <h2>{editingId ? 'Editar ficha da equipa' : 'Nova conta da equipa'}</h2>
+        <p>Email e palavra-passe dão acesso à aplicação. O telefone é opcional.</p>
         <label>Nome<input required value={form.name} onChange={e => setForm({ ...form, name: e.target.value })}/></label>
-        <label>Email (opcional)<input type="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })}/></label>
-        <label>Palavra-passe inicial (opcional)<input minLength={8} value={form.password} onChange={e => setForm({ ...form, password: e.target.value })}/></label>
+        <label>Email<input type="email" placeholder="para dar acesso" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })}/></label>
+        <label>{editingId ? 'Nova palavra-passe (deixe vazio para manter)' : 'Palavra-passe inicial'}<input type="text" minLength={8} placeholder="mínimo 8 carateres" value={form.password} onChange={e => setForm({ ...form, password: e.target.value })}/></label>
+        <label>Telefone<input type="tel" placeholder="ex.: 912 345 678" value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })}/></label>
         <label>Papel<select value={form.role} onChange={e => setForm({ ...form, role: e.target.value })}>
           <option value="designer">Designer</option>
           <option value="admin">Administradora</option>
         </select></label>
-        <button className="primary-button" type="submit">{form.email ? 'Criar conta' : 'Criar ficha pendente'}</button>
+        <button className="primary-button" type="submit">{editingId ? 'Guardar alterações' : (form.email ? 'Criar conta' : 'Criar ficha pendente')}</button>
       </form>
     </div>}
   </div>

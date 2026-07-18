@@ -29,6 +29,8 @@ class Development(Base):
     due_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     estimated_value: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), nullable=True)
     production_quantity: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    source_created_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, index=True)
+    trello_card_id: Mapped[str | None] = mapped_column(String(32), nullable=True, unique=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)
 

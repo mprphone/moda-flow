@@ -22,4 +22,5 @@ def serialize_purchase(item):
         "cover_url": item.cover_url,
         "development_id": item.development_id,
         "days_to_return": days,
+        "trello_card_id": item.trello_card_id,
     }

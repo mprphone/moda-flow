@@ -19,6 +19,8 @@ class Production(Base):
     due_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     responsible_name: Mapped[str | None] = mapped_column(String(120), nullable=True)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    source_created_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, index=True)
+    trello_card_id: Mapped[str | None] = mapped_column(String(32), nullable=True, unique=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
     development = relationship("Development", back_populates="productions")

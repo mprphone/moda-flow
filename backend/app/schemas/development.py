@@ -38,6 +38,8 @@ class QuickUpdate(ORMModel):
     request_group: str | None = None
     requested_quantity: int | None = None
     request_notes: str | None = None
+    source_created_at: datetime | None = None
+    trello_card_id: str | None = None
     label_ids: list[int] | None = None
 
 
@@ -99,6 +101,8 @@ class DevelopmentOut(ORMModel):
     waiting_reason: str | None = None
     due_date: date | None = None
     created_at: datetime
+    source_created_at: datetime | None = None
+    trello_card_id: str | None = None
     updated_at: datetime
     days_in_stage: float
     next_action: str

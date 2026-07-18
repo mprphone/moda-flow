@@ -31,6 +31,8 @@ def serialize_development(development: Development) -> dict:
         "due_date": development.due_date,
         "estimated_value": float(development.estimated_value) if development.estimated_value is not None else None,
         "created_at": development.created_at,
+        "source_created_at": development.source_created_at,
+        "trello_card_id": development.trello_card_id,
         "updated_at": development.updated_at,
         "days_in_stage": days_in_current_stage(development),
         "next_action": get_next_action(development),

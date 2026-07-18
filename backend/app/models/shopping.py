@@ -26,6 +26,7 @@ class ShoppingPurchase(Base):
     attachments_json: Mapped[str | None] = mapped_column(Text, nullable=True)
     cover_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
     development_id: Mapped[int | None] = mapped_column(ForeignKey("developments.id"), nullable=True)
+    trello_card_id: Mapped[str | None] = mapped_column(String(32), nullable=True, unique=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
     development = relationship("Development", back_populates="shopping")

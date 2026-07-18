@@ -44,6 +44,7 @@ class FabricRequest(Base):
     supplier_confirmed_at: Mapped[date | None] = mapped_column(Date, nullable=True)
     expected_at: Mapped[date | None] = mapped_column(Date, nullable=True)
     received_at: Mapped[date | None] = mapped_column(Date, nullable=True)
+    trello_card_id: Mapped[str | None] = mapped_column(String(32), nullable=True, unique=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
     supplier = relationship("Supplier")

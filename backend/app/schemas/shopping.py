@@ -33,6 +33,7 @@ class ShoppingUpdate(ORMModel):
     invoice_sent: bool | None = None
     credit_note_sent: bool | None = None
     attachments: list[dict] | None = None
+    trello_card_id: str | None = None
 
 
 class ShoppingOut(ShoppingCreate):
@@ -41,3 +42,4 @@ class ShoppingOut(ShoppingCreate):
     credit_note_number: str | None = None
     refund_received: bool
     days_to_return: int | None = None
+    trello_card_id: str | None = None
