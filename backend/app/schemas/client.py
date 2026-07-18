@@ -11,6 +11,12 @@ class ClientOut(ClientCreate):
     id: int
 
 
+class ClientUpdate(ORMModel):
+    name: str | None = None
+    group_name: str | None = None
+    notes: str | None = None
+
+
 class ClientScoreOut(ORMModel):
     client_id: int
     name: str

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { KeyRound, ShieldCheck, UserPlus, UserRound, X } from 'lucide-react'
+import { KeyRound, Pencil, ShieldCheck, Trash2, UserPlus, UserRound, X } from 'lucide-react'
 import { api } from '../api/client'
 import { useAuth } from '../auth'
 import { toast } from '../lib/toast'
@@ -48,6 +48,21 @@ export function TeamPage() {
     void load()
   }
 
+  async function editUser(item: TeamUser) {
+    const name = window.prompt('Nome:', item.name)
+    if (!name) return
+    const email = window.prompt('Email (pode ficar vazio enquanto a ficha estiver pendente):', item.email || '')
+    if (email === null) return
+    await api.patch(`/users/${item.id}`, { name, email: email || null })
+    toast('success', 'Ficha atualizada.'); void load()
+  }
+
+  async function deleteUser(item: TeamUser) {
+    if (!window.confirm(`Eliminar definitivamente a ficha de ${item.name}?`)) return
+    await api.del(`/users/${item.id}`)
+    toast('success', 'Ficha eliminada.'); void load()
+  }
+
   async function changeMyPassword() {
     const current = window.prompt('A sua palavra-passe atual:')
     if (!current) return
@@ -80,8 +95,10 @@ export function TeamPage() {
             {!item.email && <span className="chip tone-yellow">Ficha pendente · sem acesso</span>}
             {item.email && !item.is_active && <span className="chip tone-pink">Conta desativada</span>}
             {isAdmin && <div className="team-actions">
+              <button title="Editar ficha" onClick={() => void editUser(item)}><Pencil size={14}/> Editar</button>
               {!item.email ? <button onClick={() => void setupAccess(item)}>Completar email e acesso</button> : <button onClick={() => void resetPassword(item)}>Repor palavra-passe</button>}
               {item.email && item.id !== user?.id && <button onClick={() => void toggleActive(item)}>{item.is_active ? 'Desativar' : 'Reativar'}</button>}
+              {item.id !== user?.id && <button className="danger" title="Eliminar ficha" onClick={() => void deleteUser(item)}><Trash2 size={14}/> Eliminar</button>}
             </div>}
           </div>
         </div>

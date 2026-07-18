@@ -56,6 +56,7 @@ def test_admin_creates_pending_profile_then_enables_access(client, db_session):
     assert enabled.status_code == 200
     assert enabled.json()["is_active"] is True
     assert login(client, "beatriz@example.com", "BeatrizPass123!")["Authorization"]
+    assert client.delete(f"/api/users/{pending.json()['id']}", headers=headers).status_code == 204
 
 
 def test_duplicate_email_rejected(client, db_session):
@@ -92,3 +93,10 @@ def test_create_client_and_supplier_with_duplicates(client, db_session):
     assert client.post("/api/clients", json={"name": "mango"}, headers=headers).status_code == 409
     assert client.post("/api/suppliers", json={"name": "Malhas Norte", "category": "malhas"}, headers=headers).status_code == 201
     assert client.post("/api/suppliers", json={"name": "MALHAS NORTE"}, headers=headers).status_code == 409
+
+    client_item = client.get("/api/clients", headers=headers).json()[0]
+    supplier_item = client.get("/api/suppliers", headers=headers).json()[0]
+    assert client.patch(f"/api/clients/{client_item['id']}", json={"name": "Mango Woman", "notes": "Cliente principal"}, headers=headers).json()["name"] == "Mango Woman"
+    assert client.patch(f"/api/suppliers/{supplier_item['id']}", json={"phone": "220000000"}, headers=headers).json()["phone"] == "220000000"
+    assert client.delete(f"/api/clients/{client_item['id']}", headers=headers).status_code == 204
+    assert client.delete(f"/api/suppliers/{supplier_item['id']}", headers=headers).status_code == 204

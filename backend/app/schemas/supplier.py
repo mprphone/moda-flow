@@ -12,6 +12,13 @@ class SupplierOut(SupplierCreate):
     id: int
 
 
+class SupplierUpdate(ORMModel):
+    name: str | None = None
+    category: str | None = None
+    email: str | None = None
+    phone: str | None = None
+
+
 class SupplierScoreOut(ORMModel):
     supplier_id: int
     name: str

@@ -106,3 +106,14 @@ def change_own_password(payload: PasswordChange, db: Session = Depends(get_db), 
     user.password_hash = hash_password(payload.new_password)
     db.commit()
     return {"ok": True}
+
+
+@router.delete("/{user_id}", status_code=204)
+def delete_user(user_id: int, db: Session = Depends(get_db), admin: User = Depends(require_admin)):
+    user = db.get(User, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="Utilizador não encontrado.")
+    if user.id == admin.id:
+        raise HTTPException(status_code=422, detail="Não pode eliminar a sua própria conta.")
+    db.delete(user)
+    db.commit()

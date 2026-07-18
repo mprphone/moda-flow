@@ -4,7 +4,9 @@ from sqlalchemy.orm import Session
 from app.core.db import get_db
 from app.models.supplier import Supplier
 from app.repositories.supplier_repository import list_all
-from app.schemas.supplier import SupplierCreate
+from app.schemas.supplier import SupplierCreate, SupplierUpdate
+from app.models.fabric_request import FabricRequest
+from app.models.stage_event import StageEvent
 from app.services.scoring.supplier_score import calculate_supplier_score
 
 router = APIRouter()
@@ -25,6 +27,35 @@ def post_supplier(payload: SupplierCreate, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(item)
     return item
+
+
+@router.patch("/{supplier_id}")
+def patch_supplier(supplier_id: int, payload: SupplierUpdate, db: Session = Depends(get_db)):
+    item = db.get(Supplier, supplier_id)
+    if not item:
+        raise HTTPException(status_code=404, detail="Fornecedor não encontrado.")
+    data = payload.model_dump(exclude_unset=True)
+    if data.get("name"):
+        data["name"] = data["name"].strip()
+        duplicate = db.scalar(select(Supplier).where(func.lower(Supplier.name) == data["name"].lower(), Supplier.id != supplier_id))
+        if duplicate:
+            raise HTTPException(status_code=409, detail="Já existe um fornecedor com esse nome.")
+    for key, value in data.items():
+        setattr(item, key, value)
+    db.commit(); db.refresh(item)
+    return item
+
+
+@router.delete("/{supplier_id}", status_code=204)
+def delete_supplier(supplier_id: int, db: Session = Depends(get_db)):
+    item = db.get(Supplier, supplier_id)
+    if not item:
+        raise HTTPException(status_code=404, detail="Fornecedor não encontrado.")
+    fabrics = db.scalar(select(func.count()).select_from(FabricRequest).where(FabricRequest.supplier_id == supplier_id)) or 0
+    events = db.scalar(select(func.count()).select_from(StageEvent).where(StageEvent.supplier_id == supplier_id)) or 0
+    if fabrics or events:
+        raise HTTPException(status_code=409, detail=f"Não é possível eliminar: existem {fabrics} malhas e {events} etapas ligadas a este fornecedor.")
+    db.delete(item); db.commit()
 
 
 @router.get("/scores")
