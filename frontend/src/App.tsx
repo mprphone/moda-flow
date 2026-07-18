@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Sidebar } from './components/Sidebar'
+import { BottomNav } from './components/BottomNav'
 import { Topbar } from './components/Topbar'
 import { Toasts } from './components/Toasts'
 import { CreateDevelopmentModal } from './components/CreateDevelopmentModal'
@@ -29,7 +30,7 @@ function Shell() {
   return <div className="app-shell">
     <Sidebar active={page} onChange={setPage} mobileOpen={navOpen} onClose={() => setNavOpen(false)}/>
     <div className="main-shell">
-      <Topbar onCreate={() => setCreating(true)} onMenu={() => setNavOpen(true)}/>
+      <Topbar onCreate={() => setCreating(true)}/>
       <main>
         {page === 'today' && <TodayPage/>}
         {page === 'board' && <BoardPage board="portfolio" refreshKey={refreshKey}/>}
@@ -42,6 +43,7 @@ function Shell() {
         {page === 'reports' && <ReportsPage/>}
         {page === 'team' && <TeamPage/>}
       </main>
+      <BottomNav active={page} onChange={p => { setPage(p); setNavOpen(false) }} onMore={() => setNavOpen(true)}/>
     </div>
     {creating && <CreateDevelopmentModal onClose={() => setCreating(false)} onCreated={() => { setCreating(false); setPage('board'); setRefreshKey(v => v + 1) }}/>}
   </div>
