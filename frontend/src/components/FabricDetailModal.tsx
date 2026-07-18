@@ -4,6 +4,7 @@ import { api } from '../api/client'
 import type { Development, FabricRequest, Label, Supplier } from '../types'
 import { LabelPicker } from './LabelPicker'
 import { QrFileUpload, type UploadedFile } from './QrFileUpload'
+import '../styles/fabrics-rich.css'
 
 const STATUS_NAMES: Record<string, string> = {
   pedido: 'Pedido feito', envio_em_curso: 'Envio em curso', recebida: 'Rolo/metros recebido',
