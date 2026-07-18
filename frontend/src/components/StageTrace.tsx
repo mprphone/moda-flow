@@ -14,6 +14,8 @@ function StageRow({ label, event, onSave, readOnly }: { label: string; event?: S
     setBusy(true)
     try { await onSave(note.trim()); setEditing(false) } finally { setBusy(false) }
   }
+  // Fases não iniciadas ficam compactas: sem caixa de nota até se clicar em "+ nota".
+  const showNoteBox = done || active || !!event?.note || editing
   return <div className={`stage-trace-row ${cls}`}>
     <span className="stage-dot"/>
     <div className="stage-trace-body">
@@ -21,6 +23,7 @@ function StageRow({ label, event, onSave, readOnly }: { label: string; event?: S
         <strong>{label}</strong>
         <span className={`chip ${done ? 'tone-mint' : active ? 'tone-sky' : 'tone-lilac'}`}>{state}</span>
         {(done || active) && <span className="stage-time">{event!.days} dias{active ? ' · a decorrer' : ''}</span>}
+        {!readOnly && !showNoteBox && <button className="stage-add-note" onClick={() => setEditing(true)}>+ nota</button>}
       </div>
       {(event?.responsible_name || event?.supplier_name) && <div className="stage-trace-meta">
         {event?.responsible_name}{event?.responsible_name && event?.supplier_name ? ' · ' : ''}{event?.supplier_name}
@@ -32,7 +35,7 @@ function StageRow({ label, event, onSave, readOnly }: { label: string; event?: S
               <textarea autoFocus value={note} onChange={e => setNote(e.target.value)} placeholder="O que foi feito, problemas, decisões técnicas..."/>
               <div className="notes-actions"><button disabled={busy} onClick={() => void save()}>Guardar</button></div>
             </div>
-          : <div className="stage-note-view" onClick={() => setEditing(true)}>
+          : showNoteBox && <div className="stage-note-view" onClick={() => setEditing(true)}>
               {event?.note ? event.note : <span className="stage-note-empty">+ Registar o que foi feito / problemas</span>}
             </div>}
     </div>

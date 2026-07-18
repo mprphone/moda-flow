@@ -5,7 +5,7 @@ import { toast } from '../lib/toast'
 import { StageTrace } from './StageTrace'
 import { LabelPicker } from './LabelPicker'
 import type { Development, DevelopmentDetail, Label, Supplier } from '../types'
-import { PIPELINE, STAGE_LABELS } from '../constants/pipeline'
+import { PIPELINE, PHASE_ONE, PHASE_ONE_IDS, STAGE_LABELS } from '../constants/pipeline'
 
 const PRODUCTION_STAGE_NAMES: Record<string, string> = {
   encomenda_recebida: 'Encomenda recebida', materiais: 'Materiais', corte: 'Corte',
@@ -111,6 +111,11 @@ export function DevelopmentModal({ item, labels, onClose, onMove, onStatus, onRe
 
   const completedStages = detail ? detail.stage_history.filter(e => e.ended_at).length : 0
   const totalDays = detail ? Math.round(detail.stage_history.reduce((sum, e) => sum + (e.days || 0), 0)) : 0
+  // Na fase de proposta só se mostram as fases dessa etapa; malhas/produção ainda não se aplicam.
+  const inProposal = (PHASE_ONE_IDS as readonly string[]).includes(item.current_stage)
+  const traceStages = (inProposal ? PHASE_ONE : PIPELINE) as unknown as [string, string][]
+  const showFabrics = !inProposal || (detail?.fabric_requests.length ?? 0) > 0
+  const showProductions = (detail?.productions.length ?? 0) > 0
 
   return <div className="modal-backdrop" onMouseDown={onClose}><div className="modal-card" onMouseDown={e => e.stopPropagation()}>
     <button className="modal-close" onClick={onClose}><X/></button>
@@ -129,7 +134,10 @@ export function DevelopmentModal({ item, labels, onClose, onMove, onStatus, onRe
           {detail?.estimated_completion && <span className={detail.eta_at_risk ? 'eta-risk' : ''}><TrendingUp size={16}/>Previsão: {detail.estimated_completion}{detail.eta_at_risk ? ' ⚠ depois do prazo' : ''}</span>}
         </div>
         <LabelPicker all={labels} applied={item.labels} onChange={onLabels}/>
-        <div className="compact-pipeline">{PIPELINE.map(([id,label], i) => <button key={id} className={i < index ? 'done' : i === index ? 'active' : ''} onClick={() => onMove(id)}><span>{i+1}</span>{label}</button>)}</div>
+        <div className="compact-pipeline">{traceStages.map(([id,label]) => {
+          const i = PIPELINE.findIndex(([pid]) => pid === id)
+          return <button key={id} className={i < index ? 'done' : i === index ? 'active' : ''} onClick={() => onMove(id)}><span>{i+1}</span>{label}</button>
+        })}</div>
         <section className="smart-panel"><div><Sparkles size={20}/><strong>Assistente do desenvolvimento</strong></div>{item.suggestions.length ? item.suggestions.map(text => <p key={text}>{text}</p>) : <p>O desenvolvimento está dentro do ritmo normal.</p>}</section>
         <section className="current-stage"><div className="section-title"><Layers3 size={18}/><strong>Fase atual</strong></div><div className="stage-focus"><div><small>ONDE ESTÁ</small><strong>{STAGE_LABELS[item.current_stage]}</strong></div><div><small>PRÓXIMA AÇÃO</small><strong>{item.next_action}</strong></div><div><small>MOTIVO DE ESPERA</small><strong>{item.waiting_reason || 'Sem bloqueios registados'}</strong></div></div></section>
         <section className="history-section notes-section">
@@ -148,21 +156,21 @@ export function DevelopmentModal({ item, labels, onClose, onMove, onStatus, onRe
           <div className="journey-title"><Route size={19}/><strong>Percurso do modelo — do desenho à produção</strong></div>
 
           <div className="journey-block">
-            <div className="journey-head"><span className="journey-badge dev"><Layers3 size={14}/></span>1 · Desenvolvimento da amostra</div>
+            <div className="journey-head"><span className="journey-badge dev"><Layers3 size={14}/></span>{inProposal ? '1 · Proposta ao cliente' : '1 · Desenvolvimento da amostra'}</div>
             {detail && <StageTrace
               heading=""
-              stages={PIPELINE as unknown as [string, string][]}
+              stages={traceStages}
               history={detail.stage_history}
               onSaveNote={saveStageNote}
               summary={<>
                 <span>{completedStages} etapas concluídas</span>
                 <span>{totalDays} dias no total</span>
-                {detail.estimated_completion && <span className={detail.eta_at_risk ? 'eta-risk' : ''}>Previsão: {detail.estimated_completion}</span>}
+                {!inProposal && detail.estimated_completion && <span className={detail.eta_at_risk ? 'eta-risk' : ''}>Previsão: {detail.estimated_completion}</span>}
               </>}
             />}
           </div>
 
-          <div className="journey-block">
+          {showFabrics && <div className="journey-block">
             <div className="journey-head"><span className="journey-badge fabric"><Scroll size={14}/></span>2 · Malhas
               <button className="team-action" onClick={() => setAddingFabric(v => !v)}>{addingFabric ? 'Cancelar' : '+ Pedir malha'}</button>
             </div>
@@ -185,11 +193,10 @@ export function DevelopmentModal({ item, labels, onClose, onMove, onStatus, onRe
               </span>
             </div>)}</div>}
             {detail && detail.fabric_requests.length === 0 && !addingFabric && <p className="empty-note">Ainda sem malhas pedidas.</p>}
-          </div>
+          </div>}
 
-          <div className="journey-block">
+          {showProductions && <div className="journey-block">
             <div className="journey-head"><span className="journey-badge prod"><Factory size={14}/></span>3 · Produção industrial</div>
-            {detail && detail.productions.length === 0 && <p className="empty-note">Ainda não passou para produção industrial.</p>}
             {detail && detail.productions.map(p => <div key={p.id} className="journey-production">
               <div className="journey-prod-head">
                 <strong>{p.title || `Produção #${p.id}`}</strong>
@@ -198,7 +205,7 @@ export function DevelopmentModal({ item, labels, onClose, onMove, onStatus, onRe
               </div>
               {p.stage_history.length > 0 && <StageTrace heading="" readOnly stages={PRODUCTION_STAGES} history={p.stage_history}/>}
             </div>)}
-          </div>
+          </div>}
         </section>
 
         <section className="history-section">
