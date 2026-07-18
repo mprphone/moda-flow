@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { DndContext, DragEndEvent, useDraggable, useDroppable } from '@dnd-kit/core'
+import { DndContext, DragEndEvent, PointerSensor, useDraggable, useDroppable, useSensor, useSensors } from '@dnd-kit/core'
 import { CalendarDays, Package, UserRound } from 'lucide-react'
 import { api } from '../api/client'
 import { toast } from '../lib/toast'
@@ -48,6 +48,7 @@ export function ProductionPage() {
   const [data, setData] = useState<Response>({ stages: [], items: [] })
   const [query, setQuery] = useState('')
   const [clientFilter, setClientFilter] = useState('')
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }))
   useEffect(() => { void api.get<Response>('/productions').then(setData) }, [])
 
   const clients = useMemo(() => [...new Set(data.items.map(item => item.client_name))].sort(), [data])
@@ -98,7 +99,7 @@ export function ProductionPage() {
       </select>
       {(query || clientFilter) && <button className="clear-filters" onClick={() => { setQuery(''); setClientFilter('') }}>Limpar</button>}
     </div>
-    <DndContext onDragEnd={handleDragEnd}>
+    <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
       <div className="board-scroll">
         {data.stages.map(stage => <ProductionColumn key={stage} id={stage} title={STAGE_NAMES[stage] || stage} items={grouped[stage] || []}/>)}
       </div>

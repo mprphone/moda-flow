@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { DndContext, DragEndEvent, useDraggable, useDroppable } from '@dnd-kit/core'
+import { DndContext, DragEndEvent, PointerSensor, useDraggable, useDroppable, useSensor, useSensors } from '@dnd-kit/core'
 import { AlertTriangle, Clock3, Scroll, Trash2, X } from 'lucide-react'
 import { api } from '../api/client'
 import { toast } from '../lib/toast'
@@ -25,7 +25,7 @@ const EMPTY_FORM = {
 function FabricCard({ item, onOpen }: { item: FabricRequest; onOpen: () => void }) {
   const { attributes, listeners, setNodeRef, transform } = useDraggable({ id: item.id, data: item })
   const style = transform ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` } : undefined
-  return <article ref={setNodeRef} style={style} className={`development-card ${item.needs_reminder ? 'risk-high' : ''}`} {...listeners} {...attributes} onDoubleClick={onOpen}>
+  return <article ref={setNodeRef} style={style} className={`development-card ${item.needs_reminder ? 'risk-high' : ''}`} {...listeners} {...attributes} onClick={onOpen}>
     {item.cover_url && <img src={item.cover_url} alt="" className="card-cover"/>}
     <div className="card-body">
       <div className="card-title">{item.reference}</div>
@@ -65,6 +65,8 @@ export function FabricsPage() {
   const [selected, setSelected] = useState<FabricRequest | null>(null)
   const [form, setForm] = useState(EMPTY_FORM)
 
+  // O arrasto só arma após 6px de movimento — o clique simples abre o cartão.
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }))
   const load = () => api.get<Response>('/fabric-requests').then(setData)
   useEffect(() => {
     void load()
@@ -156,7 +158,7 @@ export function FabricsPage() {
       </select>
       {(query || supplierFilter) && <button className="clear-filters" onClick={() => { setQuery(''); setSupplierFilter('') }}>Limpar</button>}
     </div>
-    <DndContext onDragEnd={handleDragEnd}>
+    <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
       <div className="board-scroll">
         {data.statuses.map(status => <FabricColumn key={status} id={status} title={FABRIC_STATUS_NAMES[status] || status} items={grouped[status] || []} onOpen={setSelected}/>)}
       </div>

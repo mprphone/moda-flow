@@ -5,7 +5,7 @@ import type { Development } from '../types'
 export function DevelopmentCard({ item, onOpen }: { item: Development; onOpen: () => void }) {
   const { attributes, listeners, setNodeRef, transform } = useDraggable({ id: item.id, data: item })
   const style = transform ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` } : undefined
-  return <article ref={setNodeRef} style={style} className={`development-card risk-${item.risk}`} {...listeners} {...attributes} onDoubleClick={onOpen}>
+  return <article ref={setNodeRef} style={style} className={`development-card risk-${item.risk}`} {...listeners} {...attributes} onClick={onOpen}>
     {item.cover_url && <img src={item.cover_url} alt="" className="card-cover"/>}
     <div className="card-body">
       <div className="card-title">{item.code}</div>

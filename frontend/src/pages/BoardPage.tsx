@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { DndContext, DragEndEvent } from '@dnd-kit/core'
+import { DndContext, DragEndEvent, PointerSensor, useSensor, useSensors } from '@dnd-kit/core'
 import { Filter, PencilRuler, Shirt, Archive, RotateCcw } from 'lucide-react'
 import { api } from '../api/client'
 import { useAuth } from '../auth'
@@ -22,6 +22,8 @@ export function BoardPage({ refreshKey }: { refreshKey: number }) {
   const [riskFilter, setRiskFilter] = useState('')
   const [labelFilter, setLabelFilter] = useState('')
 
+  // O arrasto só arma após 6px de movimento — o clique simples abre o cartão.
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }))
   const load = () => api.get<Development[]>('/developments').then(setItems)
   useEffect(() => { void load(); api.get<Label[]>('/labels').then(setLabels) }, [refreshKey])
 
@@ -151,7 +153,7 @@ export function BoardPage({ refreshKey }: { refreshKey: number }) {
       </select>
       {(query || clientFilter || riskFilter || labelFilter) && <button className="clear-filters" onClick={() => { setQuery(''); setClientFilter(''); setRiskFilter(''); setLabelFilter('') }}>Limpar</button>}
     </div>
-    {phase !== 'rejected' && <DndContext onDragEnd={handleDragEnd}>
+    {phase !== 'rejected' && <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
       <div className="board-scroll">
         {columns.map(([id, title]) => <BoardColumn key={id} id={id} title={title} items={grouped[id] || []} onOpen={setSelected}/>) }
       </div>
