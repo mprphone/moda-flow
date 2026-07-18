@@ -90,3 +90,14 @@
 @media(max-width:700px){.development-photo-hero{height:300px}.development-photo-tools{top:12px;left:12px;right:55px;flex-wrap:wrap}.photo-tool{padding:7px 9px!important}.development-detail-modal .modal-content{padding:22px 18px}}
 
 @media(max-width:650px){.modal-backdrop{padding:10px}.create-modal,.create-modal.wide{padding:20px 16px;width:96vw;max-height:92vh;overflow-y:auto}.form-grid,.form-grid.two{grid-template-columns:1fr}.model-row{grid-template-columns:24px 1fr;gap:8px;padding:12px}.model-remove{grid-column:2;justify-self:end}.page-heading{flex-direction:column;gap:12px}.page-heading h1{font-size:23px}.heading-actions{width:100%}.heading-actions .primary-button{margin-left:auto}}
+
+/* Listas e quadros em telemovel */
+@media(max-width:650px){
+.board-scroll{scroll-snap-type:x mandatory;scroll-padding-left:15px;gap:11px;padding-bottom:14px;min-height:auto;-webkit-overflow-scrolling:touch}
+.board-column{scroll-snap-align:start;width:min(86vw,312px);min-width:min(86vw,312px);max-height:calc(100dvh - 205px);overflow-y:auto;padding:10px}
+.board-column .column-header{position:sticky;top:0;z-index:2;background:#eef1f6;margin:-10px -10px 6px;padding:12px 12px 9px;border-radius:16px 16px 0 0}
+.card-cover{height:132px}
+.development-card{border-radius:13px}
+.board-legend{flex-wrap:wrap}
+.shopping-pipeline{scroll-snap-type:x mandatory}.shopping-column{scroll-snap-align:start;width:min(86vw,300px);min-width:min(86vw,300px)}
+}
