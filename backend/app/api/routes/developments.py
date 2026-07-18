@@ -5,8 +5,9 @@ from app.core.db import get_db
 from app.models.comment import Comment
 from app.models.fabric_request import FabricRequest
 from app.models.label import Label
+from app.models.stage_event import StageEvent
 from app.repositories.development_repository import list_all, get_by_id
-from app.schemas.development import CommentCreate, DevelopmentCreate, DevelopmentMove, QuickUpdate
+from app.schemas.development import CommentCreate, DevelopmentCreate, DevelopmentMove, QuickUpdate, StageNoteUpdate
 from app.services.development.create_development import create_development
 from app.services.development.serialize_development import serialize_development
 from app.services.development.serialize_detail import serialize_detail
@@ -67,6 +68,16 @@ def delete_development(development_id: int, db: Session = Depends(get_db)):
         fabric.development_id = None
     db.delete(item)
     db.commit()
+
+
+@router.patch("/{development_id}/stages/{event_id}")
+def update_stage_note(development_id: int, event_id: int, payload: StageNoteUpdate, db: Session = Depends(get_db)):
+    event = db.get(StageEvent, event_id)
+    if not event or event.development_id != development_id:
+        raise HTTPException(status_code=404, detail="Fase não encontrada")
+    event.note = payload.note
+    db.commit()
+    return serialize_detail(db, get_by_id(db, development_id))
 
 
 @router.post("/{development_id}/comments", status_code=201)

@@ -38,6 +38,10 @@ class CommentCreate(ORMModel):
     category: str = "nota_interna"
 
 
+class StageNoteUpdate(ORMModel):
+    note: str | None = None
+
+
 class StageSummary(ORMModel):
     stage: str
     status: str

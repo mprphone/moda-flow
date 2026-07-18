@@ -13,12 +13,14 @@ def serialize_detail(db: Session, development) -> dict:
     for event in sorted(development.stage_events, key=lambda item: item.started_at):
         seconds = ((event.ended_at or utcnow()) - event.started_at).total_seconds()
         history.append({
+            "id": event.id,
             "stage": event.stage,
             "status": event.status,
             "started_at": event.started_at,
             "ended_at": event.ended_at,
             "days": round(seconds / 86400, 1),
             "note": event.note,
+            "responsible_name": event.responsible_name,
             "supplier_name": event.supplier.name if event.supplier else None,
         })
     data["stage_history"] = history

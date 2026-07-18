@@ -64,6 +64,13 @@ def test_development_lifecycle(client, db_session):
     assert body["stage_history"][0]["status"] == "completed"
     assert body["estimated_completion"] is not None
 
+    # editar a nota de uma fase (o que foi feito / problemas)
+    first_event = body["stage_history"][0]
+    noted_stage = client.patch(f"/api/developments/{dev_id}/stages/{first_event['id']}", json={"note": "Malha confirmada, sem problemas"}, headers=headers)
+    assert noted_stage.status_code == 200
+    updated_event = next(e for e in noted_stage.json()["stage_history"] if e["id"] == first_event["id"])
+    assert updated_event["note"] == "Malha confirmada, sem problemas"
+
     invalid = client.post(f"/api/developments/{dev_id}/move", json={"to_stage": "inexistente"}, headers=headers)
     assert invalid.status_code == 422
 

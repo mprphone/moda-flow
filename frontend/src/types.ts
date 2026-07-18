@@ -32,12 +32,14 @@ export type Development = {
 export type CommentItem = { id: number; author: string; body: string; category: string; created_at: string }
 
 export type StageHistoryItem = {
+  id: number
   stage: string
   status: string
   started_at: string
   ended_at?: string
   days: number
   note?: string
+  responsible_name?: string
   supplier_name?: string
 }
 

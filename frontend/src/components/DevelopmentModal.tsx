@@ -2,8 +2,42 @@ import { useEffect, useState } from 'react'
 import { X, Sparkles, Clock3, UserRound, CalendarDays, ArrowRight, Layers3, Factory, Tag, Trash2, TrendingUp, MessageCircle, StickyNote, Scroll } from 'lucide-react'
 import { api } from '../api/client'
 import { toast } from '../lib/toast'
-import type { Development, DevelopmentDetail, Label, Supplier } from '../types'
+import type { Development, DevelopmentDetail, Label, StageHistoryItem, Supplier } from '../types'
 import { PIPELINE, STAGE_LABELS } from '../constants/pipeline'
+
+function StageRow({ event, onSave }: { event: StageHistoryItem; onSave: (note: string) => Promise<void> }) {
+  const [note, setNote] = useState(event.note || '')
+  const [editing, setEditing] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const done = !!event.ended_at
+  const active = event.status === 'active' && !event.ended_at
+  const state = done ? 'Concluída' : active ? 'Em curso' : event.status
+  async function save() {
+    setBusy(true)
+    try { await onSave(note.trim()); setEditing(false) } finally { setBusy(false) }
+  }
+  return <div className={`stage-trace-row ${done ? 'done' : active ? 'active' : 'pending'}`}>
+    <span className="stage-dot"/>
+    <div className="stage-trace-body">
+      <div className="stage-trace-head">
+        <strong>{STAGE_LABELS[event.stage] || event.stage}</strong>
+        <span className={`chip ${done ? 'tone-mint' : active ? 'tone-sky' : 'tone-lilac'}`}>{state}</span>
+        {(done || active) && <span className="stage-time">{event.days} dias{active ? ' · a decorrer' : ''}</span>}
+      </div>
+      {(event.responsible_name || event.supplier_name) && <div className="stage-trace-meta">
+        {event.responsible_name}{event.responsible_name && event.supplier_name ? ' · ' : ''}{event.supplier_name}
+      </div>}
+      {editing
+        ? <div className="stage-note-edit">
+            <textarea autoFocus value={note} onChange={e => setNote(e.target.value)} placeholder="O que foi feito, problemas, decisões técnicas..."/>
+            <div className="notes-actions"><button disabled={busy} onClick={() => void save()}>Guardar</button></div>
+          </div>
+        : <div className="stage-note-view" onClick={() => setEditing(true)}>
+            {event.note ? event.note : <span className="stage-note-empty">+ Registar o que foi feito / problemas</span>}
+          </div>}
+    </div>
+  </div>
+}
 
 type Props = {
   item: Development
@@ -89,6 +123,15 @@ export function DevelopmentModal({ item, labels, onClose, onMove, onStatus, onRe
     } finally { setSaving(false) }
   }
 
+  async function saveStageNote(eventId: number, note: string) {
+    const updated = await api.patch<DevelopmentDetail>(`/developments/${item.id}/stages/${eventId}`, { note: note || null })
+    setDetail(updated)
+    toast('success', 'Nota da fase guardada.')
+  }
+
+  const completedStages = detail ? detail.stage_history.filter(e => e.ended_at).length : 0
+  const totalDays = detail ? Math.round(detail.stage_history.reduce((sum, e) => sum + (e.days || 0), 0)) : 0
+
   return <div className="modal-backdrop" onMouseDown={onClose}><div className="modal-card" onMouseDown={e => e.stopPropagation()}>
     <button className="modal-close" onClick={onClose}><X/></button>
     <div className="modal-cover" style={{backgroundImage: `url(${item.cover_url || ''})`}}></div>
@@ -162,12 +205,14 @@ export function DevelopmentModal({ item, labels, onClose, onMove, onStatus, onRe
           </div>)}</div>
         </section>
         {detail && detail.stage_history.length > 0 && <section className="history-section">
-          <div className="section-title"><Clock3 size={18}/><strong>Histórico de fases</strong></div>
-          <div className="history-list">{[...detail.stage_history].reverse().map((event, i) => <div className="history-row" key={i}>
-            <strong>{STAGE_LABELS[event.stage] || event.stage}</strong>
-            <span>{event.days} d{event.supplier_name ? ` · ${event.supplier_name}` : ''}{event.ended_at ? '' : ' · em curso'}</span>
-            {event.note && <em>{event.note}</em>}
-          </div>)}</div>
+          <div className="section-title"><Clock3 size={18}/><strong>Rastreabilidade por etapas</strong></div>
+          <div className="stage-trace-summary">
+            <span>{completedStages} etapas concluídas</span>
+            <span>{totalDays} dias no total</span>
+            {detail.estimated_completion && <span className={detail.eta_at_risk ? 'eta-risk' : ''}>Previsão: {detail.estimated_completion}</span>}
+          </div>
+          <div className="stage-trace">{[...detail.stage_history].reverse().map(event =>
+            <StageRow key={event.id} event={event} onSave={(note) => saveStageNote(event.id, note)}/>)}</div>
         </section>}
       </div>
       <aside className="modal-side">
