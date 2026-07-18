@@ -51,6 +51,27 @@ def test_production_traceability(client, db_session):
     assert client.get(f"/api/productions/{prod_id}", headers=headers).json()["description"] == "Prioridade alta"
 
 
+def test_production_cross_links(client, db_session):
+    headers = auth(client, db_session)
+    db_session.add(Client(name="Zara"))
+    db_session.commit()
+    client_id = db_session.query(Client).first().id
+
+    dev_id = client.post("/api/developments", json={"code": "CR_001", "title": "Camisola", "client_id": client_id, "owner_name": "Isabel"}, headers=headers).json()["id"]
+    client.post("/api/fabric-requests", json={"reference": "MALHA X", "development_id": dev_id}, headers=headers)
+    prod_id = client.post("/api/productions", json={"title": "Camisola prod", "client_id": client_id, "quantity": 300}, headers=headers).json()["id"]
+
+    # ligar a produção ao desenvolvimento
+    linked = client.patch(f"/api/productions/{prod_id}", json={"development_id": dev_id}, headers=headers).json()
+    assert linked["development"]["code"] == "CR_001"
+    # a produção passa a ver as malhas do desenvolvimento
+    assert any(f["reference"] == "MALHA X" for f in linked["fabric_requests"])
+
+    # o desenvolvimento passa a ver a produção
+    dev_detail = client.get(f"/api/developments/{dev_id}", headers=headers).json()
+    assert any(p["id"] == prod_id for p in dev_detail["productions"])
+
+
 def test_development_stage_note_upsert(client, db_session):
     headers = auth(client, db_session)
     db_session.add(Client(name="Zara"))

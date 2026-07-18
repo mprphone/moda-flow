@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+﻿from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session, joinedload, selectinload
 from app.core.db import get_db
@@ -6,10 +6,12 @@ from app.core.timeutil import utcnow
 from app.models.client import Client
 from app.models.comment import Comment
 from app.models.development import Development
+from app.models.fabric_request import FabricRequest
 from app.models.production import Production, ProductionEvent
 from app.schemas.common import ORMModel
 from app.schemas.development import CommentCreate
 from app.schemas.production import ProductionCreate, ProductionUpdate
+from app.services.fabrics.serialize_request import serialize_request
 
 router = APIRouter()
 
@@ -26,7 +28,7 @@ STAGE_LABELS = {
     "encomenda_recebida": "Encomenda recebida",
     "materiais": "Materiais",
     "corte": "Corte",
-    "confecao": "Confeção",
+    "confecao": "ConfeÃ§Ã£o",
     "controlo_qualidade": "Controlo qualidade",
     "expedida": "Expedida",
     "cancelada": "Cancelada",
@@ -62,7 +64,7 @@ def serialize_production(item: Production) -> dict:
         "development_code": item.development.code if item.development else None,
         "title": item.title or (item.development.title if item.development else None),
         "client_id": client.id if client else None,
-        "client_name": client.name if client else "—",
+        "client_name": client.name if client else "â€”",
         "quantity": item.quantity,
         "status": item.status,
         "due_date": item.due_date,
@@ -71,8 +73,25 @@ def serialize_production(item: Production) -> dict:
     }
 
 
-def serialize_detail(item: Production) -> dict:
+def serialize_detail(item: Production, db: Session) -> dict:
     data = serialize_production(item)
+    # Cruzamento: desenvolvimento de origem + malhas desse desenvolvimento
+    data["development"] = {
+        "id": item.development.id,
+        "code": item.development.code,
+        "title": item.development.title,
+        "current_stage": item.development.current_stage,
+    } if item.development else None
+    if item.development_id:
+        fabric_stmt = (
+            select(FabricRequest)
+            .where(FabricRequest.development_id == item.development_id)
+            .options(joinedload(FabricRequest.supplier), joinedload(FabricRequest.development), selectinload(FabricRequest.labels))
+            .order_by(FabricRequest.requested_at.desc())
+        )
+        data["fabric_requests"] = [serialize_request(f) for f in db.scalars(fabric_stmt).unique().all()]
+    else:
+        data["fabric_requests"] = []
     history = []
     for event in sorted(item.events, key=lambda e: e.started_at):
         seconds = ((event.ended_at or utcnow()) - event.started_at).total_seconds()
@@ -87,8 +106,8 @@ def serialize_detail(item: Production) -> dict:
             "responsible_name": event.responsible_name,
             "supplier_name": None,
         })
-    # Produções antigas (importadas antes do histórico) não têm eventos: mostra a fase
-    # atual como em curso a partir da criação, sem persistir nada.
+    # ProduÃ§Ãµes antigas (importadas antes do histÃ³rico) nÃ£o tÃªm eventos: mostra a fase
+    # atual como em curso a partir da criaÃ§Ã£o, sem persistir nada.
     if not history and item.status != "cancelada":
         seconds = (utcnow() - item.created_at).total_seconds()
         history.append({
@@ -118,8 +137,8 @@ def get_productions(db: Session = Depends(get_db)):
 def get_production(production_id: int, db: Session = Depends(get_db)):
     item = load_by_id(db, production_id)
     if not item:
-        raise HTTPException(status_code=404, detail="Produção não encontrada")
-    return serialize_detail(item)
+        raise HTTPException(status_code=404, detail="ProduÃ§Ã£o nÃ£o encontrada")
+    return serialize_detail(item, db)
 
 
 @router.post("", status_code=201)
@@ -127,14 +146,14 @@ def post_production(payload: ProductionCreate, db: Session = Depends(get_db)):
     data = payload.model_dump(exclude_unset=True)
     status = data.pop("status", None) or "encomenda_recebida"
     if status not in PRODUCTION_STAGES:
-        raise HTTPException(status_code=422, detail="Estado de produção inválido")
+        raise HTTPException(status_code=422, detail="Estado de produÃ§Ã£o invÃ¡lido")
     if payload.development_id:
         if not db.get(Development, payload.development_id):
-            raise HTTPException(status_code=404, detail="Desenvolvimento não encontrado")
+            raise HTTPException(status_code=404, detail="Desenvolvimento nÃ£o encontrado")
     elif not (payload.title and payload.client_id):
-        raise HTTPException(status_code=422, detail="Indique um desenvolvimento, ou título + cliente.")
+        raise HTTPException(status_code=422, detail="Indique um desenvolvimento, ou tÃ­tulo + cliente.")
     if payload.client_id and not db.get(Client, payload.client_id):
-        raise HTTPException(status_code=404, detail="Cliente não encontrado")
+        raise HTTPException(status_code=404, detail="Cliente nÃ£o encontrado")
     item = Production(**data)
     item.status = status
     db.add(item)
@@ -148,12 +167,12 @@ def post_production(payload: ProductionCreate, db: Session = Depends(get_db)):
 def patch_production(production_id: int, payload: ProductionUpdate, db: Session = Depends(get_db)):
     item = load_by_id(db, production_id)
     if not item:
-        raise HTTPException(status_code=404, detail="Produção não encontrada")
+        raise HTTPException(status_code=404, detail="ProduÃ§Ã£o nÃ£o encontrada")
     data = payload.model_dump(exclude_unset=True)
     new_status = data.get("status")
     if new_status and new_status not in PRODUCTION_STAGES:
-        raise HTTPException(status_code=422, detail="Estado de produção inválido")
-    # Ao mudar de fase, fecha o evento ativo e abre um novo — regista o tempo em cada fase.
+        raise HTTPException(status_code=422, detail="Estado de produÃ§Ã£o invÃ¡lido")
+    # Ao mudar de fase, fecha o evento ativo e abre um novo â€” regista o tempo em cada fase.
     if new_status and new_status != item.status:
         now = utcnow()
         for event in item.events:
@@ -171,30 +190,30 @@ def patch_production(production_id: int, payload: ProductionUpdate, db: Session 
     for key, value in data.items():
         setattr(item, key, value)
     db.commit()
-    return serialize_detail(load_by_id(db, production_id))
+    return serialize_detail(load_by_id(db, production_id), db)
 
 
 @router.put("/{production_id}/stage-notes")
 def upsert_stage_note(production_id: int, payload: StageNoteUpsert, db: Session = Depends(get_db)):
     item = load_by_id(db, production_id)
     if not item:
-        raise HTTPException(status_code=404, detail="Produção não encontrada")
+        raise HTTPException(status_code=404, detail="ProduÃ§Ã£o nÃ£o encontrada")
     if payload.stage not in PRODUCTION_STAGES:
-        raise HTTPException(status_code=422, detail="Fase inválida")
-    # Escreve a nota na fase; se ainda não foi percorrida, cria um marcador planeado.
+        raise HTTPException(status_code=422, detail="Fase invÃ¡lida")
+    # Escreve a nota na fase; se ainda nÃ£o foi percorrida, cria um marcador planeado.
     events = [e for e in item.events if e.stage == payload.stage]
     if events:
         max(events, key=lambda e: e.started_at).note = payload.note
     else:
         db.add(ProductionEvent(production_id=item.id, stage=payload.stage, status="planned", ended_at=None, note=payload.note, responsible_name=item.responsible_name))
     db.commit()
-    return serialize_detail(load_by_id(db, production_id))
+    return serialize_detail(load_by_id(db, production_id), db)
 
 
 @router.post("/{production_id}/comments", status_code=201)
 def add_comment(production_id: int, payload: CommentCreate, db: Session = Depends(get_db)):
     if not db.get(Production, production_id):
-        raise HTTPException(status_code=404, detail="Produção não encontrada")
+        raise HTTPException(status_code=404, detail="ProduÃ§Ã£o nÃ£o encontrada")
     db.add(Comment(production_id=production_id, author=payload.author, body=payload.body, category=payload.category))
     db.commit()
     return {"ok": True}
@@ -204,6 +223,6 @@ def add_comment(production_id: int, payload: CommentCreate, db: Session = Depend
 def delete_production(production_id: int, db: Session = Depends(get_db)):
     item = db.get(Production, production_id)
     if not item:
-        raise HTTPException(status_code=404, detail="Produção não encontrada")
+        raise HTTPException(status_code=404, detail="ProduÃ§Ã£o nÃ£o encontrada")
     db.delete(item)
     db.commit()

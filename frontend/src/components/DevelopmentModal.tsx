@@ -1,5 +1,10 @@
 import { useEffect, useState } from 'react'
 import { X, Sparkles, Clock3, UserRound, CalendarDays, ArrowRight, Layers3, Factory, Tag, Trash2, TrendingUp, MessageCircle, StickyNote, Scroll } from 'lucide-react'
+
+const PRODUCTION_STAGE_NAMES: Record<string, string> = {
+  encomenda_recebida: 'Encomenda recebida', materiais: 'Materiais', corte: 'Corte',
+  confecao: 'Confeção', controlo_qualidade: 'Controlo qualidade', expedida: 'Expedida', cancelada: 'Cancelada',
+}
 import { api } from '../api/client'
 import { toast } from '../lib/toast'
 import { StageTrace } from './StageTrace'
@@ -148,6 +153,13 @@ export function DevelopmentModal({ item, labels, onClose, onMove, onStatus, onRe
           </div>)}</div>}
           {detail && detail.fabric_requests.length === 0 && !addingFabric && <p className="empty-note">Ainda sem malhas pedidas para este modelo.</p>}
         </section>
+        {detail && detail.productions.length > 0 && <section className="history-section">
+          <div className="section-title"><Factory size={18}/><strong>Produções deste modelo</strong></div>
+          <div className="history-list">{detail.productions.map(p => <div className="history-row" key={p.id}>
+            <strong>{p.title || `Produção #${p.id}`}</strong>
+            <span>{PRODUCTION_STAGE_NAMES[p.status] || p.status}{p.quantity > 0 ? ` · ${p.quantity} un.` : ''}{p.due_date ? ` · prazo ${p.due_date}` : ''}</span>
+          </div>)}</div>
+        </section>}
         <section className="history-section notes-section">
           <div className="section-title"><StickyNote size={18}/><strong>Notas</strong></div>
           <textarea

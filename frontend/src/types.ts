@@ -75,6 +75,7 @@ export type DevelopmentDetail = Development & {
   eta_at_risk: boolean
   comments: CommentItem[]
   fabric_requests: FabricRequest[]
+  productions: LinkedProduction[]
 }
 
 export type Client = { id: number; name: string; group_name?: string }
@@ -132,6 +133,10 @@ export type Production = {
 export type ProductionDetail = Production & {
   stage_history: StageHistoryItem[]
   comments: CommentItem[]
+  development?: { id: number; code: string; title: string; current_stage: string } | null
+  fabric_requests: FabricRequest[]
 }
+
+export type LinkedProduction = { id: number; status: string; quantity: number; due_date?: string; title?: string }
 
 export type StageStat = { stage: string; label: string; average_days?: number; completed_events: number }

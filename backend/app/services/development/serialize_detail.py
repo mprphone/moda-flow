@@ -38,4 +38,8 @@ def serialize_detail(db: Session, development) -> dict:
         .order_by(FabricRequest.requested_at.desc())
     )
     data["fabric_requests"] = [serialize_request(item) for item in db.scalars(fabric_stmt).unique().all()]
+    data["productions"] = [
+        {"id": p.id, "status": p.status, "quantity": p.quantity, "due_date": p.due_date, "title": p.title}
+        for p in development.productions
+    ]
     return data

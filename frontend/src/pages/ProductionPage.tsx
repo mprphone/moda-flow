@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useState } from 'react'
 import { DndContext, DragEndEvent, PointerSensor, useDraggable, useDroppable, useSensor, useSensors } from '@dnd-kit/core'
-import { CalendarDays, MessageCircle, Package, StickyNote, Trash2, UserRound, X } from 'lucide-react'
+import { CalendarDays, Layers3, MessageCircle, Package, Scroll, StickyNote, Trash2, UserRound, X } from 'lucide-react'
 import { api } from '../api/client'
 import { useAuth } from '../auth'
 import { toast } from '../lib/toast'
 import { StageTrace } from '../components/StageTrace'
-import type { Client, Production, ProductionDetail } from '../types'
+import { FABRIC_STATUS_NAMES } from './FabricsPage'
+import { STAGE_LABELS as STAGE_LABELS_DEV } from '../constants/pipeline'
+import type { Client, Development, Production, ProductionDetail } from '../types'
 
 type Response = { stages: string[]; items: Production[] }
 
@@ -51,6 +53,7 @@ export function ProductionPage() {
   const { user } = useAuth()
   const [data, setData] = useState<Response>({ stages: [], items: [] })
   const [clientsList, setClientsList] = useState<Client[]>([])
+  const [developments, setDevelopments] = useState<Development[]>([])
   const [query, setQuery] = useState('')
   const [clientFilter, setClientFilter] = useState('')
   const [view, setView] = useState<'fase' | 'cliente'>('fase')
@@ -63,6 +66,7 @@ export function ProductionPage() {
   useEffect(() => {
     void api.get<Response>('/productions').then(setData)
     api.get<Client[]>('/clients').then(setClientsList)
+    api.get<Development[]>('/developments').then(setDevelopments)
   }, [])
 
   useEffect(() => {
@@ -199,6 +203,24 @@ export function ProductionPage() {
               <label>Prazo<input type="date" defaultValue={selected.due_date || ''} onChange={e => void patchProduction(selected.id, { due_date: e.target.value || null }, 'Prazo atualizado.')}/></label>
               <label>Responsável<input defaultValue={selected.responsible_name || ''} onBlur={e => { if (e.target.value !== (selected.responsible_name || '')) void patchProduction(selected.id, { responsible_name: e.target.value || null }, 'Responsável atualizado.') }}/></label>
             </div>
+            <section className="history-section">
+              <div className="section-title"><Layers3 size={18}/><strong>Desenvolvimento de origem</strong></div>
+              <select className="status-select cross-select" value={selected.development_id ?? ''} onChange={e => void patchProduction(selected.id, { development_id: e.target.value ? Number(e.target.value) : null }, 'Ligação atualizada.')}>
+                <option value="">Sem desenvolvimento associado</option>
+                {developments.map(d => <option key={d.id} value={d.id}>{d.code} — {d.title}</option>)}
+              </select>
+              {detail?.development && <div className="cross-link">
+                {detail.development.code} — {detail.development.title}
+                <span className="chip tone-sky">{STAGE_LABELS_DEV[detail.development.current_stage] || detail.development.current_stage}</span>
+              </div>}
+            </section>
+            {detail && detail.fabric_requests.length > 0 && <section className="history-section">
+              <div className="section-title"><Scroll size={18}/><strong>Malhas deste modelo</strong></div>
+              <div className="history-list">{detail.fabric_requests.map(f => <div className="history-row" key={f.id}>
+                <strong>{f.reference}{f.color ? ` · ${f.color}` : ''}{f.supplier_name ? ` — ${f.supplier_name}` : ''}</strong>
+                <span>{FABRIC_STATUS_NAMES[f.status] || f.status}{f.days_pending != null ? ` · há ${f.days_pending} d` : ''}{f.needs_reminder ? ' · ⚠ relançar' : ''}</span>
+              </div>)}</div>
+            </section>}
             <section className="history-section notes-section">
               <div className="section-title"><StickyNote size={18}/><strong>Notas</strong></div>
               <textarea placeholder="Descrição, materiais, instruções de produção..." value={notes} onChange={e => setNotes(e.target.value)}/>
