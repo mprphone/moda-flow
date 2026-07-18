@@ -27,6 +27,7 @@ def serialize_production(item: Production) -> dict:
         "development_id": item.development_id,
         "development_code": item.development.code if item.development else None,
         "title": item.title or (item.development.title if item.development else None),
+        "client_id": client.id if client else None,
         "client_name": client.name if client else "—",
         "quantity": item.quantity,
         "status": item.status,

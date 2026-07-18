@@ -22,7 +22,15 @@ const EMPTY_FORM = {
   requested_at: '', notes: '', cover_url: '',
 }
 
-function FabricCard({ item, onOpen }: { item: FabricRequest; onOpen: () => void }) {
+const STATUS_TONES: Record<string, string> = {
+  pedido: 'yellow',
+  envio_em_curso: 'sky',
+  recebida: 'mint',
+  tingimento: 'lilac',
+  cancelada: 'pink',
+}
+
+function FabricCard({ item, onOpen, showStatus }: { item: FabricRequest; onOpen: () => void; showStatus?: boolean }) {
   const { attributes, listeners, setNodeRef, transform } = useDraggable({ id: item.id, data: item })
   const style = transform ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` } : undefined
   return <article ref={setNodeRef} style={style} className={`development-card ${item.needs_reminder ? 'risk-high' : ''}`} {...listeners} {...attributes} onClick={onOpen}>
@@ -31,7 +39,9 @@ function FabricCard({ item, onOpen }: { item: FabricRequest; onOpen: () => void 
       <div className="card-title">{item.reference}</div>
       {item.color && <div className="card-subtitle">{item.color}</div>}
       <div className="chips">
-        {item.supplier_name && <span className="chip tone-lilac">{item.supplier_name}</span>}
+        {showStatus
+          ? <span className={`chip tone-${STATUS_TONES[item.status] || 'lilac'}`}>{FABRIC_STATUS_NAMES[item.status] || item.status}</span>
+          : item.supplier_name && <span className="chip tone-lilac">{item.supplier_name}</span>}
         {item.development_code && <span className="chip tone-sky">{item.development_code}</span>}
       </div>
       <div className="card-footer">
@@ -45,12 +55,12 @@ function FabricCard({ item, onOpen }: { item: FabricRequest; onOpen: () => void 
   </article>
 }
 
-function FabricColumn({ id, title, items, onOpen }: { id: string; title: string; items: FabricRequest[]; onOpen: (item: FabricRequest) => void }) {
+function FabricColumn({ id, title, items, onOpen, showStatus }: { id: string; title: string; items: FabricRequest[]; onOpen: (item: FabricRequest) => void; showStatus?: boolean }) {
   const { setNodeRef, isOver } = useDroppable({ id })
   const [limit, setLimit] = useState(20)
   return <section ref={setNodeRef} className={`board-column ${isOver ? 'is-over' : ''}`}>
     <div className="column-header"><strong>{title}</strong><span>{items.length}</span></div>
-    <div className="column-cards">{items.slice(0, limit).map(item => <FabricCard key={item.id} item={item} onOpen={() => onOpen(item)}/>)}</div>
+    <div className="column-cards">{items.slice(0, limit).map(item => <FabricCard key={item.id} item={item} onOpen={() => onOpen(item)} showStatus={showStatus}/>)}</div>
     {items.length > limit && <button className="add-card" onClick={() => setLimit(v => v + 100)}>Mostrar mais {items.length - limit} cartões...</button>}
   </section>
 }
@@ -61,6 +71,7 @@ export function FabricsPage() {
   const [developments, setDevelopments] = useState<Development[]>([])
   const [query, setQuery] = useState('')
   const [supplierFilter, setSupplierFilter] = useState('')
+  const [view, setView] = useState<'estado' | 'fornecedor'>('estado')
   const [creating, setCreating] = useState(false)
   const [selected, setSelected] = useState<FabricRequest | null>(null)
   const [form, setForm] = useState(EMPTY_FORM)
@@ -81,11 +92,21 @@ export function FabricsPage() {
     return true
   }), [data, query, supplierFilter])
 
-  const grouped = useMemo(() => Object.fromEntries(data.statuses.map(status => {
-    const items = visible.filter(item => item.status === status)
+  // Colunas: por estado (pipeline) ou por fornecedor (como no Trello)
+  const columns = useMemo(() => {
+    if (view === 'estado') {
+      return data.statuses.map(status => ({ id: status, title: FABRIC_STATUS_NAMES[status] || status }))
+    }
+    return [{ id: 'none', title: 'Sem fornecedor' }, ...suppliers.map(s => ({ id: String(s.id), title: s.name }))]
+  }, [view, data.statuses, suppliers])
+
+  const grouped = useMemo(() => Object.fromEntries(columns.map(column => {
+    const items = visible.filter(item => view === 'estado'
+      ? item.status === column.id
+      : String(item.supplier_id ?? 'none') === column.id)
     items.sort((a, b) => (b.days_pending ?? -1) - (a.days_pending ?? -1))
-    return [status, items]
-  })), [data.statuses, visible])
+    return [column.id, items]
+  })), [columns, visible, view])
 
   const pendingCount = data.items.filter(item => item.days_pending != null).length
   const reminderCount = data.items.filter(item => item.needs_reminder).length
@@ -101,11 +122,18 @@ export function FabricsPage() {
   function handleDragEnd(event: DragEndEvent) {
     if (!event.over) return
     const item = event.active.data.current as FabricRequest
-    const status = String(event.over.id)
-    if (item.status !== status) {
-      const previous = data
-      setData(current => ({ ...current, items: current.items.map(i => i.id === item.id ? { ...i, status } : i) }))
-      patchItem(item.id, { status }, `Malha em "${FABRIC_STATUS_NAMES[status] || status}".`).catch(() => setData(previous))
+    const target = String(event.over.id)
+    const previous = data
+    if (view === 'estado') {
+      if (item.status === target) return
+      setData(current => ({ ...current, items: current.items.map(i => i.id === item.id ? { ...i, status: target } : i) }))
+      patchItem(item.id, { status: target }, `Malha em "${FABRIC_STATUS_NAMES[target] || target}".`).catch(() => setData(previous))
+    } else {
+      const supplierId = target === 'none' ? null : Number(target)
+      if ((item.supplier_id ?? null) === supplierId) return
+      const supplierName = suppliers.find(s => s.id === supplierId)?.name
+      setData(current => ({ ...current, items: current.items.map(i => i.id === item.id ? { ...i, supplier_id: supplierId ?? undefined, supplier_name: supplierName } : i) }))
+      patchItem(item.id, { supplier_id: supplierId }, supplierName ? `Malha atribuída a ${supplierName}.` : 'Fornecedor removido.').catch(() => setData(previous))
     }
   }
 
@@ -149,18 +177,22 @@ export function FabricsPage() {
       </div>
       <button className="primary-button" onClick={() => setCreating(true)}>+ Pedir malha</button>
     </div>
+    <div className="phase-tabs">
+      <button className={view === 'estado' ? 'active' : ''} onClick={() => setView('estado')}>Por estado</button>
+      <button className={view === 'fornecedor' ? 'active' : ''} onClick={() => { setView('fornecedor'); setSupplierFilter('') }}>Por fornecedor</button>
+    </div>
     <div className="filter-bar">
       <Scroll size={16}/>
       <input placeholder="Pesquisar referência, cor, modelo..." value={query} onChange={e => setQuery(e.target.value)}/>
-      <select value={supplierFilter} onChange={e => setSupplierFilter(e.target.value)}>
+      {view === 'estado' && <select value={supplierFilter} onChange={e => setSupplierFilter(e.target.value)}>
         <option value="">Todos os fornecedores</option>
         {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-      </select>
+      </select>}
       {(query || supplierFilter) && <button className="clear-filters" onClick={() => { setQuery(''); setSupplierFilter('') }}>Limpar</button>}
     </div>
     <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
       <div className="board-scroll">
-        {data.statuses.map(status => <FabricColumn key={status} id={status} title={FABRIC_STATUS_NAMES[status] || status} items={grouped[status] || []} onOpen={setSelected}/>)}
+        {columns.map(column => <FabricColumn key={`${view}-${column.id}`} id={column.id} title={column.title} items={grouped[column.id] || []} onOpen={setSelected} showStatus={view === 'fornecedor'}/>)}
       </div>
     </DndContext>
     {selected && <div className="modal-backdrop" onMouseDown={() => setSelected(null)}>

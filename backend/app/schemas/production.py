@@ -17,6 +17,8 @@ class ProductionUpdate(ORMModel):
     quantity: int | None = None
     due_date: date | None = None
     responsible_name: str | None = None
+    client_id: int | None = None
+    title: str | None = None
 
 
 class ProductionOut(ProductionCreate):

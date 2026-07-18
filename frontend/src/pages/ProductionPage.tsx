@@ -17,7 +17,7 @@ const STAGE_NAMES: Record<string, string> = {
   cancelada: 'Cancelada',
 }
 
-function ProductionCard({ item }: { item: Production }) {
+function ProductionCard({ item, showStatus }: { item: Production; showStatus?: boolean }) {
   const { attributes, listeners, setNodeRef, transform } = useDraggable({ id: item.id, data: item })
   const style = transform ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` } : undefined
   return <article ref={setNodeRef} style={style} className="development-card production-card" {...listeners} {...attributes}>
@@ -25,6 +25,7 @@ function ProductionCard({ item }: { item: Production }) {
       <div className="card-title">{item.development_code || item.title}</div>
       {item.development_code && item.title && <div className="card-subtitle">{item.title}</div>}
       <div className="card-subtitle">{item.client_name}</div>
+      {showStatus && <div className="chips"><span className="chip tone-sky">{STAGE_NAMES[item.status] || item.status}</span></div>}
       <div className="production-meta">
         {item.quantity > 0 && <span><Package size={13}/>{item.quantity} un.</span>}
         {item.due_date && <span><CalendarDays size={13}/>{item.due_date}</span>}
@@ -34,12 +35,12 @@ function ProductionCard({ item }: { item: Production }) {
   </article>
 }
 
-function ProductionColumn({ id, title, items }: { id: string; title: string; items: Production[] }) {
+function ProductionColumn({ id, title, items, showStatus }: { id: string; title: string; items: Production[]; showStatus?: boolean }) {
   const { setNodeRef, isOver } = useDroppable({ id })
   const [limit, setLimit] = useState(25)
   return <section ref={setNodeRef} className={`board-column ${isOver ? 'is-over' : ''}`}>
     <div className="column-header"><strong>{title}</strong><span>{items.length}</span></div>
-    <div className="column-cards">{items.slice(0, limit).map(item => <ProductionCard key={item.id} item={item}/>)}</div>
+    <div className="column-cards">{items.slice(0, limit).map(item => <ProductionCard key={item.id} item={item} showStatus={showStatus}/>)}</div>
     {items.length > limit && <button className="add-card" onClick={() => setLimit(v => v + 100)}>Mostrar mais {items.length - limit} cartões...</button>}
   </section>
 }
@@ -48,6 +49,7 @@ export function ProductionPage() {
   const [data, setData] = useState<Response>({ stages: [], items: [] })
   const [query, setQuery] = useState('')
   const [clientFilter, setClientFilter] = useState('')
+  const [view, setView] = useState<'fase' | 'cliente'>('fase')
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }))
   useEffect(() => { void api.get<Response>('/productions').then(setData) }, [])
 
@@ -60,9 +62,15 @@ export function ProductionPage() {
     return true
   }), [data, query, clientFilter])
 
+  // Colunas por fase (pipeline) ou por cliente (como o quadro PRODUÇÕES do Trello)
+  const columns = useMemo(() => view === 'fase'
+    ? data.stages.map(stage => ({ id: stage, title: STAGE_NAMES[stage] || stage }))
+    : clients.map(name => ({ id: name, title: name })),
+  [view, data.stages, clients])
+
   const grouped = useMemo(
-    () => Object.fromEntries(data.stages.map(stage => [stage, visible.filter(item => item.status === stage)])),
-    [data.stages, visible],
+    () => Object.fromEntries(columns.map(column => [column.id, visible.filter(item => view === 'fase' ? item.status === column.id : item.client_name === column.id)])),
+    [columns, visible, view],
   )
 
   async function move(id: number, status: string) {
@@ -78,7 +86,7 @@ export function ProductionPage() {
   }
 
   function handleDragEnd(event: DragEndEvent) {
-    if (!event.over) return
+    if (!event.over || view !== 'fase') return
     const item = event.active.data.current as Production
     const status = String(event.over.id)
     if (item.status !== status) void move(item.id, status)
@@ -87,21 +95,25 @@ export function ProductionPage() {
   return <div className="board-page">
     <div className="page-heading">
       <div>
-        <h1>Pipeline de produções</h1>
-        <p>Arraste cada produção pelas fases. As produções nascem da amostra aprovada no quadro de desenvolvimento.</p>
+        <h1>Produções</h1>
+        <p>{view === 'fase' ? 'Arraste cada produção pelas fases.' : 'Vista por cliente, como o quadro do Trello. O estado está no cartão.'}</p>
       </div>
+    </div>
+    <div className="phase-tabs">
+      <button className={view === 'fase' ? 'active' : ''} onClick={() => setView('fase')}>Por fase</button>
+      <button className={view === 'cliente' ? 'active' : ''} onClick={() => { setView('cliente'); setClientFilter('') }}>Por cliente</button>
     </div>
     <div className="filter-bar">
       <input placeholder="Pesquisar modelo ou referência..." value={query} onChange={e => setQuery(e.target.value)}/>
-      <select value={clientFilter} onChange={e => setClientFilter(e.target.value)}>
+      {view === 'fase' && <select value={clientFilter} onChange={e => setClientFilter(e.target.value)}>
         <option value="">Todos os clientes</option>
         {clients.map(name => <option key={name} value={name}>{name}</option>)}
-      </select>
+      </select>}
       {(query || clientFilter) && <button className="clear-filters" onClick={() => { setQuery(''); setClientFilter('') }}>Limpar</button>}
     </div>
     <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
       <div className="board-scroll">
-        {data.stages.map(stage => <ProductionColumn key={stage} id={stage} title={STAGE_NAMES[stage] || stage} items={grouped[stage] || []}/>)}
+        {columns.map(column => <ProductionColumn key={`${view}-${column.id}`} id={column.id} title={column.title} items={grouped[column.id] || []} showStatus={view === 'cliente'}/>)}
       </div>
     </DndContext>
   </div>
