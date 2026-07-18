@@ -84,3 +84,12 @@ def patch_production(production_id: int, payload: ProductionUpdate, db: Session 
     db.commit()
     db.refresh(item)
     return serialize_production(item)
+
+
+@router.delete("/{production_id}", status_code=204)
+def delete_production(production_id: int, db: Session = Depends(get_db)):
+    item = db.get(Production, production_id)
+    if not item:
+        raise HTTPException(status_code=404, detail="Produção não encontrada")
+    db.delete(item)
+    db.commit()
