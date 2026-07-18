@@ -35,6 +35,8 @@ export function BoardPage({ board, refreshKey }: { board: Board; refreshKey: num
   const [clientFilter, setClientFilter] = useState('')
   const [riskFilter, setRiskFilter] = useState('')
   const [labelFilter, setLabelFilter] = useState('')
+  const [assigneeFilter, setAssigneeFilter] = useState('')
+  const [taskFilter, setTaskFilter] = useState('')
   const [archiveLimit, setArchiveLimit] = useState(50)
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }))
@@ -42,6 +44,7 @@ export function BoardPage({ board, refreshKey }: { board: Board; refreshKey: num
   useEffect(() => { void load(); api.get<Label[]>('/labels').then(setLabels) }, [refreshKey])
 
   const clients = useMemo(() => [...new Set(items.map(item => item.client_name))].sort(), [items])
+  const assignees = useMemo(() => [...new Set(items.flatMap(item => item.assignees.map(person => person.name)))].sort(), [items])
   const isPhaseOne = (stage: string) => (PHASE_ONE_IDS as readonly string[]).includes(stage)
 
   const filtered = useMemo(() => items.filter(item => {
@@ -50,8 +53,10 @@ export function BoardPage({ board, refreshKey }: { board: Board; refreshKey: num
     if (clientFilter && item.client_name !== clientFilter) return false
     if (riskFilter && item.risk !== riskFilter) return false
     if (labelFilter && !item.labels.some(label => String(label.id) === labelFilter)) return false
+    if (assigneeFilter && !item.assignees.some(person => person.name === assigneeFilter)) return false
+    if (taskFilter && !item.tasks.some(task => task.kind === taskFilter && !['done', 'cancelled'].includes(task.status))) return false
     return true
-  }), [items, query, clientFilter, riskFilter, labelFilter])
+  }), [items, query, clientFilter, riskFilter, labelFilter, assigneeFilter, taskFilter])
 
   // Arquivo: reprovados, cancelados e amostras enviadas (concluídas fora da coluna Aprovado)
   const isArchived = (item: Development) =>
@@ -168,7 +173,17 @@ export function BoardPage({ board, refreshKey }: { board: Board; refreshKey: num
         <option value="">Todas as etiquetas</option>
         {labels.map(label => <option key={label.id} value={label.id}>{label.name}</option>)}
       </select>
-      {(query || clientFilter || riskFilter || labelFilter) && <button className="clear-filters" onClick={() => { setQuery(''); setClientFilter(''); setRiskFilter(''); setLabelFilter('') }}>Limpar</button>}
+      <select value={assigneeFilter} onChange={e => setAssigneeFilter(e.target.value)}>
+        <option value="">Toda a equipa</option>
+        {assignees.map(name => <option key={name} value={name}>{name}</option>)}
+      </select>
+      <select value={taskFilter} onChange={e => setTaskFilter(e.target.value)}>
+        <option value="">Todas as pendências</option>
+        <option value="ficha">Ficha técnica</option><option value="malha">Malha</option><option value="tingimento">Tingimento</option>
+        <option value="grafico_bordado">Gráfico/bordado</option><option value="acessorios">Acessórios</option>
+        <option value="peca_shopping">Peça shopping</option><option value="envio_cliente">Envio ao cliente</option><option value="resposta_cliente">Resposta do cliente</option>
+      </select>
+      {(query || clientFilter || riskFilter || labelFilter || assigneeFilter || taskFilter) && <button className="clear-filters" onClick={() => { setQuery(''); setClientFilter(''); setRiskFilter(''); setLabelFilter(''); setAssigneeFilter(''); setTaskFilter('') }}>Limpar</button>}
     </div>
     {view !== 'rejected' && <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
       <div className="board-scroll">
@@ -202,6 +217,10 @@ export function BoardPage({ board, refreshKey }: { board: Board; refreshKey: num
       onReject={(reason) => void rejectItem(selected.id, reason)}
       onLabels={(labelIds) => void updateItem(selected.id, { label_ids: labelIds })}
       onOwner={(name) => void updateItem(selected.id, { owner_name: name })}
+      onStructuredChange={(updated) => {
+        setItems(current => current.map(item => item.id === updated.id ? updated : item))
+        setSelected(updated)
+      }}
       onDescription={(text) => saveDescription(selected.id, text)}
       onComment={(body) => addComment(selected.id, body)}
       onCreateProduction={(quantity) => void createProduction(selected.id, quantity)}

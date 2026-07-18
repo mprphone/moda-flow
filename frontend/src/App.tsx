@@ -11,6 +11,7 @@ import { ProductionPage } from './pages/ProductionPage'
 import { TeamPage } from './pages/TeamPage'
 import { FabricsPage } from './pages/FabricsPage'
 import { LoginPage } from './pages/LoginPage'
+import { ReconciliationPage } from './pages/ReconciliationPage'
 import { AuthProvider, useAuth } from './auth'
 
 function Shell() {
@@ -34,6 +35,7 @@ function Shell() {
         {page === 'shopping' && <ShoppingPage/>}
         {page === 'partners' && <PartnersPage/>}
         {page === 'production' && <ProductionPage/>}
+        {page === 'reconciliation' && <ReconciliationPage/>}
         {page === 'team' && <TeamPage/>}
       </main>
     </div>

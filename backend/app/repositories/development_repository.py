@@ -1,6 +1,6 @@
 from sqlalchemy import select
 from sqlalchemy.orm import Session, joinedload, selectinload
-from app.models.development import Development
+from app.models.development import Development, DevelopmentAssignee, DevelopmentTask
 from app.models.production import Production
 
 LIST_OPTIONS = (
@@ -9,6 +9,8 @@ LIST_OPTIONS = (
     selectinload(Development.productions).selectinload(Production.events),
     selectinload(Development.labels),
     selectinload(Development.comments),
+    selectinload(Development.assignees).joinedload(DevelopmentAssignee.user),
+    selectinload(Development.tasks).joinedload(DevelopmentTask.responsible),
 )
 
 

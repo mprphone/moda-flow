@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react'
-import { X, Sparkles, Clock3, UserRound, CalendarDays, ArrowRight, Layers3, Factory, Trash2, TrendingUp, MessageCircle, StickyNote, Scroll, Route } from 'lucide-react'
+import { X, Sparkles, Clock3, UserRound, CalendarDays, ArrowRight, Layers3, Factory, Trash2, TrendingUp, MessageCircle, StickyNote, Scroll, Route, ListChecks, UsersRound } from 'lucide-react'
 import { api } from '../api/client'
 import { toast } from '../lib/toast'
 import { StageTrace } from './StageTrace'
 import { LabelPicker } from './LabelPicker'
-import type { Development, DevelopmentDetail, Label, Supplier } from '../types'
+import type { Development, DevelopmentDetail, Label, Supplier, TeamUser } from '../types'
 import { PIPELINE, PHASE_ONE, PHASE_ONE_IDS, STAGE_LABELS } from '../constants/pipeline'
 
 const PRODUCTION_STAGE_NAMES: Record<string, string> = {
@@ -26,6 +26,13 @@ const STATUS_BADGE: Record<string, { label: string; tone: string }> = {
   cancelled: { label: 'Cancelado', tone: 'lilac' },
 }
 
+const TASK_NAMES: Record<string, string> = {
+  ficha: 'Ficha técnica', malha: 'Malha', tingimento: 'Tingimento', grafico_bordado: 'Gráfico/bordado',
+  acessorios: 'Acessórios', peca_shopping: 'Peça shopping', envio_cliente: 'Envio ao cliente', resposta_cliente: 'Resposta do cliente',
+}
+const TASK_STATUS_NAMES: Record<string, string> = { pending: 'Pendente', in_progress: 'Em curso', waiting: 'A aguardar', done: 'Concluída', cancelled: 'Cancelada' }
+const ROLE_NAMES: Record<string, string> = { principal: 'Principal', parceria: 'Parceria', fitting: 'Fitting', qualidade: 'Qualidade', grafico: 'Gráfico' }
+
 type Props = {
   item: Development
   labels: Label[]
@@ -35,13 +42,14 @@ type Props = {
   onReject: (reason?: string) => void
   onLabels: (labelIds: number[]) => void
   onOwner: (name: string) => void
+  onStructuredChange: (item: Development) => void
   onDescription: (text: string) => Promise<void>
   onComment: (body: string) => Promise<void>
   onCreateProduction: (quantity: number) => void
   onDelete: () => void
 }
 
-export function DevelopmentModal({ item, labels, onClose, onMove, onStatus, onReject, onLabels, onOwner, onDescription, onComment, onCreateProduction, onDelete }: Props) {
+export function DevelopmentModal({ item, labels, onClose, onMove, onStatus, onReject, onLabels, onOwner, onStructuredChange, onDescription, onComment, onCreateProduction, onDelete }: Props) {
   const [detail, setDetail] = useState<DevelopmentDetail | null>(null)
   const [refresh, setRefresh] = useState(0)
   const [notes, setNotes] = useState(item.description || '')
@@ -49,6 +57,9 @@ export function DevelopmentModal({ item, labels, onClose, onMove, onStatus, onRe
   const [saving, setSaving] = useState(false)
   const [suppliers, setSuppliers] = useState<Supplier[]>([])
   const [designers, setDesigners] = useState<string[]>([])
+  const [teamUsers, setTeamUsers] = useState<TeamUser[]>([])
+  const [assigneeForm, setAssigneeForm] = useState({ user_id: '', role: 'parceria' })
+  const [taskForm, setTaskForm] = useState({ kind: 'ficha', note: '', responsible_user_id: '' })
   const [editingOwner, setEditingOwner] = useState(false)
   const [ownerText, setOwnerText] = useState(item.owner_name)
   const [fabricForm, setFabricForm] = useState({ reference: '', supplier_id: '', quantity_meters: '', color: '' })
@@ -60,7 +71,7 @@ export function DevelopmentModal({ item, labels, onClose, onMove, onStatus, onRe
   useEffect(() => { setNotes(item.description || ''); setOwnerText(item.owner_name) }, [item.id, item.description, item.owner_name])
   useEffect(() => {
     api.get<Supplier[]>('/suppliers').then(setSuppliers).catch(() => {})
-    api.get<{ name: string }[]>('/users').then(u => setDesigners(u.map(x => x.name))).catch(() => {})
+    api.get<TeamUser[]>('/users').then(u => { setTeamUsers(u); setDesigners(u.map(x => x.name)) }).catch(() => {})
   }, [])
 
   function addDesigner(name: string) {
@@ -127,6 +138,42 @@ export function DevelopmentModal({ item, labels, onClose, onMove, onStatus, onRe
     toast('success', 'Nota da fase guardada.')
   }
 
+  async function refreshStructured(updated: Development) {
+    onStructuredChange(updated)
+    const fresh = await api.get<DevelopmentDetail>(`/developments/${item.id}`)
+    setDetail(fresh)
+  }
+
+  async function addAssignee() {
+    if (!assigneeForm.user_id) return
+    const updated = await api.post<Development>(`/developments/${item.id}/assignees`, { user_id: Number(assigneeForm.user_id), role: assigneeForm.role })
+    setAssigneeForm({ user_id: '', role: 'parceria' })
+    await refreshStructured(updated)
+  }
+
+  async function removeAssignee(id: number) {
+    await api.del(`/developments/${item.id}/assignees/${id}`)
+    await refreshStructured(await api.get<Development>(`/developments/${item.id}`))
+  }
+
+  async function addTask() {
+    const updated = await api.post<Development>(`/developments/${item.id}/tasks`, {
+      kind: taskForm.kind, note: taskForm.note || null,
+      responsible_user_id: taskForm.responsible_user_id ? Number(taskForm.responsible_user_id) : null,
+    })
+    setTaskForm({ kind: 'ficha', note: '', responsible_user_id: '' })
+    await refreshStructured(updated)
+  }
+
+  async function updateTask(id: number, payload: Record<string, unknown>) {
+    await refreshStructured(await api.patch<Development>(`/developments/${item.id}/tasks/${id}`, payload))
+  }
+
+  async function removeTask(id: number) {
+    await api.del(`/developments/${item.id}/tasks/${id}`)
+    await refreshStructured(await api.get<Development>(`/developments/${item.id}`))
+  }
+
   const completedStages = detail ? detail.stage_history.filter(e => e.ended_at).length : 0
   const totalDays = detail ? Math.round(detail.stage_history.reduce((sum, e) => sum + (e.days || 0), 0)) : 0
   // Na fase de proposta só se mostram as fases dessa etapa; malhas/produção ainda não se aplicam.
@@ -162,6 +209,49 @@ export function DevelopmentModal({ item, labels, onClose, onMove, onStatus, onRe
           <span className="designer-hint">(clique para juntar em parceria)</span>
         </div>}
         <LabelPicker all={labels} applied={item.labels} onChange={onLabels}/>
+        <section className="history-section parallel-work">
+          <div className="section-title"><UsersRound size={18}/><strong>Equipa e funções</strong></div>
+          <div className="structured-chips">
+            {(detail?.assignees || item.assignees).map(person => <span className="structured-chip" key={person.id}>
+              <strong>{person.name}</strong> · {ROLE_NAMES[person.role] || person.role}
+              <button type="button" onClick={() => void removeAssignee(person.id)}>×</button>
+            </span>)}
+            {(detail?.assignees || item.assignees).length === 0 && <span className="empty-note">Sem equipa estruturada; mantém-se {item.owner_name} como responsável principal.</span>}
+          </div>
+          <div className="structured-add">
+            <select value={assigneeForm.user_id} onChange={e => setAssigneeForm({ ...assigneeForm, user_id: e.target.value })}>
+              <option value="">Adicionar pessoa...</option>{teamUsers.map(user => <option key={user.id} value={user.id}>{user.name}</option>)}
+            </select>
+            <select value={assigneeForm.role} onChange={e => setAssigneeForm({ ...assigneeForm, role: e.target.value })}>
+              {Object.entries(ROLE_NAMES).map(([id, name]) => <option key={id} value={id}>{name}</option>)}
+            </select>
+            <button type="button" disabled={!assigneeForm.user_id} onClick={() => void addAssignee()}>Adicionar</button>
+          </div>
+        </section>
+        <section className="history-section parallel-work">
+          <div className="section-title"><ListChecks size={18}/><strong>Pendências paralelas</strong></div>
+          <p className="section-help">Estas tarefas podem avançar em simultâneo, sem obrigar o modelo a mudar de fase.</p>
+          <div className="parallel-task-list">
+            {(detail?.tasks || item.tasks).map(task => <div className={`parallel-task ${task.status === 'done' ? 'is-done' : ''}`} key={task.id}>
+              <div><strong>{TASK_NAMES[task.kind] || task.kind}</strong><span>{task.note || 'Sem nota'}{task.responsible_name ? ` · ${task.responsible_name}` : ''}</span></div>
+              <select value={task.status} onChange={e => void updateTask(task.id, { status: e.target.value })}>
+                {Object.entries(TASK_STATUS_NAMES).map(([id, name]) => <option key={id} value={id}>{name}</option>)}
+              </select>
+              <button className="icon-danger" type="button" onClick={() => void removeTask(task.id)}><Trash2 size={14}/></button>
+            </div>)}
+            {(detail?.tasks || item.tasks).length === 0 && <p className="empty-note">Sem pendências paralelas.</p>}
+          </div>
+          <div className="structured-add task-add">
+            <select value={taskForm.kind} onChange={e => setTaskForm({ ...taskForm, kind: e.target.value })}>
+              {Object.entries(TASK_NAMES).map(([id, name]) => <option key={id} value={id}>{name}</option>)}
+            </select>
+            <input value={taskForm.note} onChange={e => setTaskForm({ ...taskForm, note: e.target.value })} placeholder="Nota ou bloqueio..."/>
+            <select value={taskForm.responsible_user_id} onChange={e => setTaskForm({ ...taskForm, responsible_user_id: e.target.value })}>
+              <option value="">Sem responsável</option>{teamUsers.map(user => <option key={user.id} value={user.id}>{user.name}</option>)}
+            </select>
+            <button type="button" onClick={() => void addTask()}>Adicionar</button>
+          </div>
+        </section>
         <div className="compact-pipeline">{traceStages.map(([id,label]) => {
           const i = PIPELINE.findIndex(([pid]) => pid === id)
           return <button key={id} className={i < index ? 'done' : i === index ? 'active' : ''} onClick={() => onMove(id)}><span>{i+1}</span>{label}</button>

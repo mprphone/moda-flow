@@ -32,6 +32,26 @@ class QuickUpdate(ORMModel):
     label_ids: list[int] | None = None
 
 
+class AssigneeCreate(ORMModel):
+    user_id: int
+    role: str = "parceria"
+
+
+class TaskCreate(ORMModel):
+    kind: str
+    status: str = "pending"
+    note: str | None = None
+    due_date: date | None = None
+    responsible_user_id: int | None = None
+
+
+class TaskUpdate(ORMModel):
+    status: str | None = None
+    note: str | None = None
+    due_date: date | None = None
+    responsible_user_id: int | None = None
+
+
 class CommentCreate(ORMModel):
     body: str
     author: str = "Utilizador"

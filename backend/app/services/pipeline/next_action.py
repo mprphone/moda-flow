@@ -9,6 +9,13 @@ def get_next_action(development: Development) -> str:
         return "Pedir resposta ao cliente"
     if development.status == DevelopmentStatus.BLOCKED.value:
         return "Resolver bloqueio"
+    tasks = getattr(development, "tasks", [])
+    waiting_task = next((task for task in tasks if task.status == "waiting"), None)
+    if waiting_task:
+        return f"Resolver pendência: {waiting_task.kind.replace('_', ' ')}"
+    active_task = next((task for task in tasks if task.status in {"pending", "in_progress"}), None)
+    if active_task:
+        return f"Tratar pendência: {active_task.kind.replace('_', ' ')}"
 
     actions = {
         Stage.NOVO.value: "Concluir desenho e enviar proposta ao cliente",

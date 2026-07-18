@@ -1,4 +1,4 @@
-import { Clock3, MessageCircle, Sparkles } from 'lucide-react'
+import { Clock3, ListChecks, MessageCircle, Sparkles } from 'lucide-react'
 import { useDraggable } from '@dnd-kit/core'
 import type { Development } from '../types'
 import { STAGE_LABELS } from '../constants/pipeline'
@@ -23,7 +23,8 @@ export function DevelopmentCard({ item, onOpen, showStage }: { item: Development
       <div className="card-footer">
         <span><Clock3 size={14}/>{item.days_in_stage} d</span>
         {item.comments_count > 0 && <span><MessageCircle size={14}/>{item.comments_count}</span>}
-        <b>{item.owner_name.split(' ').map(v => v[0]).slice(0, 2).join('')}</b>
+        {item.open_tasks_count > 0 && <span><ListChecks size={14}/>{item.open_tasks_count}</span>}
+        <b>{(item.assignees[0]?.name || item.owner_name).split(' ').map(v => v[0]).slice(0, 2).join('')}</b>
       </div>
     </div>
   </article>

@@ -6,6 +6,7 @@ from app.services.suggestions.development_suggestions import build_suggestions, 
 
 def serialize_development(development: Development) -> dict:
     suggestions = build_suggestions(development)
+    active_tasks = [task for task in development.tasks if task.status != "done"]
     return {
         "id": development.id,
         "code": development.code,
@@ -28,4 +29,18 @@ def serialize_development(development: Development) -> dict:
         "suggestions": suggestions,
         "labels": [{"id": label.id, "name": label.name, "tone": label.tone} for label in development.labels],
         "comments_count": len(development.comments),
+        "assignees": [
+            {"id": item.id, "user_id": item.user_id, "name": item.user.name, "role": item.role}
+            for item in development.assignees
+        ],
+        "tasks": [
+            {
+                "id": task.id, "kind": task.kind, "status": task.status, "note": task.note,
+                "due_date": task.due_date, "responsible_user_id": task.responsible_user_id,
+                "responsible_name": task.responsible.name if task.responsible else None,
+                "completed_at": task.completed_at,
+            }
+            for task in sorted(development.tasks, key=lambda task: (task.status == "done", task.created_at))
+        ],
+        "open_tasks_count": len(active_tasks),
     }

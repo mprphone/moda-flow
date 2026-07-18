@@ -1,6 +1,6 @@
 from datetime import date, datetime
 from decimal import Decimal
-from sqlalchemy import Date, DateTime, ForeignKey, Integer, Numeric, String, Text
+from sqlalchemy import Date, DateTime, ForeignKey, Integer, Numeric, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.core.db import Base
 from app.core.enums import DevelopmentStatus, Stage
@@ -33,3 +33,37 @@ class Development(Base):
     shopping = relationship("ShoppingPurchase", back_populates="development")
     productions = relationship("Production", back_populates="development")
     labels = relationship("Label", secondary=development_labels, back_populates="developments")
+    assignees = relationship("DevelopmentAssignee", back_populates="development", cascade="all, delete-orphan")
+    tasks = relationship("DevelopmentTask", back_populates="development", cascade="all, delete-orphan")
+
+
+class DevelopmentAssignee(Base):
+    __tablename__ = "development_assignees"
+    __table_args__ = (UniqueConstraint("development_id", "user_id", "role", name="uq_development_assignee_role"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    development_id: Mapped[int] = mapped_column(ForeignKey("developments.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    role: Mapped[str] = mapped_column(String(40), default="parceria")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+    development = relationship("Development", back_populates="assignees")
+    user = relationship("User")
+
+
+class DevelopmentTask(Base):
+    __tablename__ = "development_tasks"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    development_id: Mapped[int] = mapped_column(ForeignKey("developments.id", ondelete="CASCADE"), index=True)
+    kind: Mapped[str] = mapped_column(String(50), index=True)
+    status: Mapped[str] = mapped_column(String(30), default="pending", index=True)
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    due_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    responsible_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)
+
+    development = relationship("Development", back_populates="tasks")
+    responsible = relationship("User")

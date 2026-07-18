@@ -26,8 +26,8 @@ function ProductionCard({ item, showStatus, onOpen }: { item: Production; showSt
   const style = transform ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` } : undefined
   return <article ref={setNodeRef} style={style} className="development-card production-card" {...listeners} {...attributes} onClick={onOpen}>
     <div className="card-body">
-      <div className="card-title">{item.development_code || item.title}</div>
-      {item.development_code && item.title && <div className="card-subtitle">{item.title}</div>}
+      <div className="card-title">{item.title || item.development_code}</div>
+      {item.development_code && <div className="card-subtitle">Origem: {item.development_code}</div>}
       <div className="card-subtitle">{item.client_name}</div>
       {showStatus && <div className="chips"><span className="chip tone-sky">{STAGE_NAMES[item.status] || item.status}</span></div>}
       <div className="production-meta">

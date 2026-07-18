@@ -141,3 +141,41 @@ def test_labels_assignment(client, db_session):
     updated = client.patch(f"/api/developments/{dev_id}", json={"label_ids": [label.json()["id"]]}, headers=headers)
     assert updated.status_code == 200
     assert updated.json()["labels"][0]["name"] == "Urgente"
+
+
+def test_parallel_tasks_and_structured_assignees(client, db_session):
+    owner = make_user(db_session)
+    partner = User(name="Joana Ferreira", email="joana@example.com", password_hash=hash_password("TestePass123!"))
+    db_session.add_all([partner, Client(name="Brownie")])
+    db_session.commit()
+    headers = login(client)
+    client_id = db_session.query(Client).first().id
+
+    created = client.post("/api/developments", json={
+        "code": "PAR_001", "title": "Top em parceria", "client_id": client_id, "owner_name": owner.name,
+    }, headers=headers)
+    assert created.status_code == 201, created.text
+    dev_id = created.json()["id"]
+    assert created.json()["assignees"][0]["role"] == "principal"
+
+    assigned = client.post(f"/api/developments/{dev_id}/assignees", json={
+        "user_id": partner.id, "role": "qualidade",
+    }, headers=headers)
+    assert assigned.status_code == 201, assigned.text
+    assert {item["name"] for item in assigned.json()["assignees"]} == {owner.name, partner.name}
+
+    fabric = client.post(f"/api/developments/{dev_id}/tasks", json={
+        "kind": "malha", "status": "waiting", "note": "Aguardar rolo", "responsible_user_id": partner.id,
+    }, headers=headers)
+    assert fabric.status_code == 201, fabric.text
+    accessories = client.post(f"/api/developments/{dev_id}/tasks", json={
+        "kind": "acessorios", "note": "Escolher botões",
+    }, headers=headers)
+    assert accessories.status_code == 201, accessories.text
+    assert accessories.json()["open_tasks_count"] == 2
+
+    task_id = next(task["id"] for task in accessories.json()["tasks"] if task["kind"] == "malha")
+    completed = client.patch(f"/api/developments/{dev_id}/tasks/{task_id}", json={"status": "done"}, headers=headers)
+    assert completed.status_code == 200, completed.text
+    assert completed.json()["open_tasks_count"] == 1
+    assert next(task for task in completed.json()["tasks"] if task["id"] == task_id)["completed_at"] is not None

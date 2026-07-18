@@ -2,6 +2,11 @@ export type Label = { id: number; name: string; tone: string }
 
 export type User = { id: number; name: string; email: string; role: string }
 export type TeamUser = User & { is_active: boolean; created_at: string }
+export type DevelopmentAssignee = { id: number; user_id: number; name: string; role: string }
+export type DevelopmentTask = {
+  id: number; kind: string; status: string; note?: string; due_date?: string
+  responsible_user_id?: number; responsible_name?: string; completed_at?: string
+}
 
 export type Development = {
   id: number
@@ -27,6 +32,9 @@ export type Development = {
   comments_count: number
   production_quantity?: number
   priority?: number
+  assignees: DevelopmentAssignee[]
+  tasks: DevelopmentTask[]
+  open_tasks_count: number
 }
 
 export type CommentItem = { id: number; author: string; body: string; category: string; created_at: string }

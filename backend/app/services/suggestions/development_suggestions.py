@@ -8,6 +8,11 @@ def build_suggestions(development: Development) -> list[str]:
     suggestions: list[str] = []
     days = days_in_current_stage(development)
 
+    waiting_tasks = [task for task in getattr(development, "tasks", []) if task.status == "waiting"]
+    if waiting_tasks:
+        names = ", ".join(task.kind.replace("_", " ") for task in waiting_tasks[:2])
+        suggestions.append(f"Pendências a aguardar: {names}.")
+
     if days >= 7 and development.status == DevelopmentStatus.ACTIVE.value:
         suggestions.append(f"Está há {days:.0f} dias nesta fase. Confirmar se existe bloqueio.")
     if development.status == DevelopmentStatus.WAITING_SUPPLIER.value and days >= 3:
