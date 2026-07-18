@@ -42,6 +42,11 @@ class StageNoteUpdate(ORMModel):
     note: str | None = None
 
 
+class StageNoteUpsert(ORMModel):
+    stage: str
+    note: str | None = None
+
+
 class StageSummary(ORMModel):
     stage: str
     status: str

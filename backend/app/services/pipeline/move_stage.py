@@ -35,16 +35,27 @@ def move_development(db: Session, development_id: int, payload: DevelopmentMove)
                 if closing_note:
                     event.note = f"{event.note} | {closing_note}" if event.note else closing_note
 
-    new_event = StageEvent(
-        development_id=development.id,
-        stage=payload.to_stage,
-        status="active",
-        started_at=now,
-        note=payload.note,
-        supplier_id=payload.supplier_id,
-        responsible_name=payload.responsible_name or development.owner_name,
-    )
-    db.add(new_event)
+    # Reaproveita uma nota antecipada (fase planeada) em vez de duplicar a fase.
+    planned = next((e for e in development.stage_events if e.stage == payload.to_stage and e.status == "planned"), None)
+    if planned:
+        planned.status = "active"
+        planned.started_at = now
+        planned.ended_at = None
+        if payload.note:
+            planned.note = payload.note
+        if payload.supplier_id:
+            planned.supplier_id = payload.supplier_id
+        planned.responsible_name = payload.responsible_name or development.owner_name
+    else:
+        db.add(StageEvent(
+            development_id=development.id,
+            stage=payload.to_stage,
+            status="active",
+            started_at=now,
+            note=payload.note,
+            supplier_id=payload.supplier_id,
+            responsible_name=payload.responsible_name or development.owner_name,
+        ))
     development.current_stage = payload.to_stage
     development.updated_at = now
     development.status = DevelopmentStatus.COMPLETED.value if payload.to_stage == Stage.APROVADO.value else DevelopmentStatus.ACTIVE.value

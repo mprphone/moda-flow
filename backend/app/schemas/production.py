@@ -19,6 +19,7 @@ class ProductionUpdate(ORMModel):
     responsible_name: str | None = None
     client_id: int | None = None
     title: str | None = None
+    description: str | None = None
 
 
 class ProductionOut(ProductionCreate):

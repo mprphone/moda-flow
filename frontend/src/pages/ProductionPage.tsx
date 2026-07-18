@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
 import { DndContext, DragEndEvent, PointerSensor, useDraggable, useDroppable, useSensor, useSensors } from '@dnd-kit/core'
-import { CalendarDays, Package, Trash2, UserRound, X } from 'lucide-react'
+import { CalendarDays, MessageCircle, Package, StickyNote, Trash2, UserRound, X } from 'lucide-react'
 import { api } from '../api/client'
+import { useAuth } from '../auth'
 import { toast } from '../lib/toast'
-import type { Client, Production } from '../types'
+import { StageTrace } from '../components/StageTrace'
+import type { Client, Production, ProductionDetail } from '../types'
 
 type Response = { stages: string[]; items: Production[] }
 
@@ -46,17 +48,33 @@ function ProductionColumn({ id, title, items, showStatus, onOpen }: { id: string
 }
 
 export function ProductionPage() {
+  const { user } = useAuth()
   const [data, setData] = useState<Response>({ stages: [], items: [] })
   const [clientsList, setClientsList] = useState<Client[]>([])
   const [query, setQuery] = useState('')
   const [clientFilter, setClientFilter] = useState('')
   const [view, setView] = useState<'fase' | 'cliente'>('fase')
   const [selected, setSelected] = useState<Production | null>(null)
+  const [detail, setDetail] = useState<ProductionDetail | null>(null)
+  const [notes, setNotes] = useState('')
+  const [comment, setComment] = useState('')
+  const [saving, setSaving] = useState(false)
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }))
   useEffect(() => {
     void api.get<Response>('/productions').then(setData)
     api.get<Client[]>('/clients').then(setClientsList)
   }, [])
+
+  useEffect(() => {
+    if (!selected) { setDetail(null); return }
+    api.get<ProductionDetail>(`/productions/${selected.id}`).then(d => { setDetail(d); setNotes(d.description || '') }).catch(() => setDetail(null))
+  }, [selected?.id])
+
+  // Fases da rastreabilidade (o pipeline, sem o estado terminal "cancelada")
+  const traceStages = useMemo<[string, string][]>(
+    () => data.stages.filter(s => s !== 'cancelada').map(s => [s, STAGE_NAMES[s] || s]),
+    [data.stages],
+  )
 
   const clients = useMemo(() => [...new Set(data.items.map(item => item.client_name))].sort(), [data])
 
@@ -79,11 +97,38 @@ export function ProductionPage() {
   )
 
   async function patchProduction(id: number, payload: Record<string, unknown>, message?: string) {
-    const updated = await api.patch<Production>(`/productions/${id}`, payload)
-    setData(current => ({ ...current, items: current.items.map(item => item.id === id ? updated : item) }))
-    setSelected(current => current?.id === id ? updated : current)
+    const updated = await api.patch<ProductionDetail>(`/productions/${id}`, payload)
+    setData(current => ({ ...current, items: current.items.map(item => item.id === id ? { ...item, ...updated } : item) }))
+    setSelected(current => current?.id === id ? { ...current, ...updated } : current)
+    if (updated.stage_history) setDetail(current => current?.id === id ? updated : current)
     if (message) toast('success', message)
     return updated
+  }
+
+  async function saveStageNote(id: number, stage: string, note: string) {
+    const updated = await api.put<ProductionDetail>(`/productions/${id}/stage-notes`, { stage, note: note || null })
+    setDetail(current => current?.id === id ? updated : current)
+    toast('success', 'Nota da fase guardada.')
+  }
+
+  async function saveDescription(id: number) {
+    setSaving(true)
+    try {
+      await patchProduction(id, { description: notes.trim() || null }, 'Notas guardadas.')
+    } finally { setSaving(false) }
+  }
+
+  async function submitComment(id: number) {
+    const body = comment.trim()
+    if (!body) return
+    setSaving(true)
+    try {
+      await api.post(`/productions/${id}/comments`, { body, author: user?.name || 'Utilizador' })
+      setComment('')
+      const d = await api.get<ProductionDetail>(`/productions/${id}`)
+      setDetail(d)
+      toast('success', 'Comentário registado.')
+    } finally { setSaving(false) }
   }
 
   async function move(id: number, status: string) {
@@ -136,21 +181,57 @@ export function ProductionPage() {
       </div>
     </DndContext>
     {selected && <div className="modal-backdrop" onMouseDown={() => setSelected(null)}>
-      <div className="create-modal fabric-detail" onMouseDown={e => e.stopPropagation()}>
+      <div className="modal-card production-detail-card" onMouseDown={e => e.stopPropagation()}>
         <button type="button" className="modal-close" onClick={() => setSelected(null)}><X/></button>
-        <h2>{selected.development_code || selected.title}</h2>
-        <p>{selected.title && selected.development_code ? selected.title : ''}{selected.title && selected.development_code ? ' · ' : ''}{selected.client_name}</p>
-        <label>Estado<select value={selected.status} onChange={e => void patchProduction(selected.id, { status: e.target.value }, 'Estado atualizado.')}>
-          {data.stages.map(stage => <option key={stage} value={stage}>{STAGE_NAMES[stage] || stage}</option>)}
-        </select></label>
-        <label>Cliente<select value={clientsList.find(c => c.name === selected.client_name)?.id ?? ''} onChange={e => void patchProduction(selected.id, { client_id: e.target.value ? Number(e.target.value) : null }, 'Cliente atualizado.')}>
-          <option value="">—</option>
-          {clientsList.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-        </select></label>
-        <label>Quantidade<input type="number" min="0" defaultValue={selected.quantity} onBlur={e => { const v = Number(e.target.value); if (v !== selected.quantity) void patchProduction(selected.id, { quantity: v }, 'Quantidade atualizada.') }}/></label>
-        <label>Prazo<input type="date" defaultValue={selected.due_date || ''} onChange={e => void patchProduction(selected.id, { due_date: e.target.value || null }, 'Prazo atualizado.')}/></label>
-        <label>Responsável<input defaultValue={selected.responsible_name || ''} onBlur={e => { if (e.target.value !== (selected.responsible_name || '')) void patchProduction(selected.id, { responsible_name: e.target.value || null }, 'Responsável atualizado.') }}/></label>
-        <button className="action danger" onClick={() => void removeProduction(selected.id)}><Trash2 size={15}/> Eliminar produção</button>
+        <div className="modal-main">
+          <div className="modal-content">
+            <div className="eyebrow">{selected.client_name} · Produção</div>
+            <h2>{selected.development_code || selected.title}{selected.development_code && selected.title ? ` — ${selected.title}` : ''}</h2>
+            <div className="production-form-grid">
+              <label>Estado<select value={selected.status} onChange={e => void patchProduction(selected.id, { status: e.target.value }, 'Estado atualizado.')}>
+                {data.stages.map(stage => <option key={stage} value={stage}>{STAGE_NAMES[stage] || stage}</option>)}
+              </select></label>
+              <label>Cliente<select value={selected.client_id ?? clientsList.find(c => c.name === selected.client_name)?.id ?? ''} onChange={e => void patchProduction(selected.id, { client_id: e.target.value ? Number(e.target.value) : null }, 'Cliente atualizado.')}>
+                <option value="">—</option>
+                {clientsList.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select></label>
+              <label>Quantidade<input type="number" min="0" defaultValue={selected.quantity} onBlur={e => { const v = Number(e.target.value); if (v !== selected.quantity) void patchProduction(selected.id, { quantity: v }, 'Quantidade atualizada.') }}/></label>
+              <label>Prazo<input type="date" defaultValue={selected.due_date || ''} onChange={e => void patchProduction(selected.id, { due_date: e.target.value || null }, 'Prazo atualizado.')}/></label>
+              <label>Responsável<input defaultValue={selected.responsible_name || ''} onBlur={e => { if (e.target.value !== (selected.responsible_name || '')) void patchProduction(selected.id, { responsible_name: e.target.value || null }, 'Responsável atualizado.') }}/></label>
+            </div>
+            <section className="history-section notes-section">
+              <div className="section-title"><StickyNote size={18}/><strong>Notas</strong></div>
+              <textarea placeholder="Descrição, materiais, instruções de produção..." value={notes} onChange={e => setNotes(e.target.value)}/>
+              {notes.trim() !== (selected.description || '').trim() && <div className="notes-actions">
+                <button disabled={saving} onClick={() => void saveDescription(selected.id)}>Guardar notas</button>
+              </div>}
+            </section>
+            <section className="history-section">
+              <StageTrace
+                stages={traceStages}
+                history={detail?.stage_history || []}
+                onSaveNote={(stage, note) => saveStageNote(selected.id, stage, note)}
+              />
+            </section>
+            <section className="history-section">
+              <div className="section-title"><MessageCircle size={18}/><strong>Comentários</strong></div>
+              <div className="comment-box">
+                <textarea placeholder="Escrever um comentário..." value={comment} onChange={e => setComment(e.target.value)}/>
+                <button disabled={saving || !comment.trim()} onClick={() => void submitComment(selected.id)}>Comentar</button>
+              </div>
+              <div className="history-list">{(detail?.comments || []).map(c => <div className="comment-row" key={c.id}>
+                <strong>{c.author}</strong>
+                <span>{c.body}</span>
+                <small>{new Date(c.created_at).toLocaleString('pt-PT', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</small>
+              </div>)}</div>
+            </section>
+          </div>
+          <aside className="modal-side">
+            <h3>Ações rápidas</h3>
+            <div className="mini-note">Arraste o cartão ou mude o estado para avançar a produção. Cada mudança regista o tempo na fase.</div>
+            <button className="action danger" onClick={() => void removeProduction(selected.id)}><Trash2 size={15}/> Eliminar produção</button>
+          </aside>
+        </div>
       </div>
     </div>}
   </div>

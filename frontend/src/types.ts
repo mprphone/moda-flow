@@ -120,11 +120,18 @@ export type Production = {
   development_id?: number
   development_code?: string
   title?: string
+  client_id?: number
   client_name: string
   quantity: number
   status: string
   due_date?: string
   responsible_name?: string
+  description?: string
+}
+
+export type ProductionDetail = Production & {
+  stage_history: StageHistoryItem[]
+  comments: CommentItem[]
 }
 
 export type StageStat = { stage: string; label: string; average_days?: number; completed_events: number }

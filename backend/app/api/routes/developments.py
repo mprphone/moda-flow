@@ -2,12 +2,13 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 from app.core.db import get_db
+from app.core.enums import PIPELINE
 from app.models.comment import Comment
 from app.models.fabric_request import FabricRequest
 from app.models.label import Label
 from app.models.stage_event import StageEvent
 from app.repositories.development_repository import list_all, get_by_id
-from app.schemas.development import CommentCreate, DevelopmentCreate, DevelopmentMove, QuickUpdate, StageNoteUpdate
+from app.schemas.development import CommentCreate, DevelopmentCreate, DevelopmentMove, QuickUpdate, StageNoteUpdate, StageNoteUpsert
 from app.services.development.create_development import create_development
 from app.services.development.serialize_development import serialize_development
 from app.services.development.serialize_detail import serialize_detail
@@ -76,6 +77,22 @@ def update_stage_note(development_id: int, event_id: int, payload: StageNoteUpda
     if not event or event.development_id != development_id:
         raise HTTPException(status_code=404, detail="Fase não encontrada")
     event.note = payload.note
+    db.commit()
+    return serialize_detail(db, get_by_id(db, development_id))
+
+
+@router.put("/{development_id}/stage-notes")
+def upsert_stage_note(development_id: int, payload: StageNoteUpsert, db: Session = Depends(get_db)):
+    development = get_by_id(db, development_id)
+    if not development:
+        raise HTTPException(status_code=404, detail="Desenvolvimento não encontrado")
+    if payload.stage not in PIPELINE:
+        raise HTTPException(status_code=422, detail="Fase inválida")
+    events = [e for e in development.stage_events if e.stage == payload.stage]
+    if events:
+        max(events, key=lambda e: e.started_at).note = payload.note
+    else:
+        db.add(StageEvent(development_id=development.id, stage=payload.stage, status="planned", ended_at=None, note=payload.note, responsible_name=development.owner_name))
     db.commit()
     return serialize_detail(db, get_by_id(db, development_id))
 
