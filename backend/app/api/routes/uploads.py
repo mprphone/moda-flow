@@ -1,4 +1,5 @@
 import io
+import shutil
 import uuid
 from pathlib import Path
 
@@ -8,6 +9,22 @@ from PIL import Image, ImageOps
 from app.core.config import settings
 
 router = APIRouter()
+
+
+@router.get("/disk")
+def disk_usage():
+    directory = Path(settings.upload_dir)
+    directory.mkdir(parents=True, exist_ok=True)
+    total, used, free = shutil.disk_usage(directory)
+    files = list(directory.glob("*"))
+    return {
+        "path": str(directory.resolve()),
+        "total_mb": round(total / 1024 / 1024, 1),
+        "used_mb": round(used / 1024 / 1024, 1),
+        "free_mb": round(free / 1024 / 1024, 1),
+        "files": len(files),
+        "files_mb": round(sum(f.stat().st_size for f in files if f.is_file()) / 1024 / 1024, 1),
+    }
 
 ALLOWED_TYPES = {"image/jpeg", "image/png", "image/webp", "image/gif"}
 MAX_BYTES = 25 * 1024 * 1024
@@ -49,6 +66,10 @@ async def upload_image(file: UploadFile):
     directory = Path(settings.upload_dir)
     directory.mkdir(parents=True, exist_ok=True)
     name = f"{uuid.uuid4().hex}.jpg"
-    (directory / name).write_bytes(buffer.getvalue())
+    try:
+        (directory / name).write_bytes(buffer.getvalue())
+    except OSError as exc:
+        # Disco cheio (ENOSPC) ou outro erro de escrita — mensagem clara em vez de 500.
+        raise HTTPException(status_code=507, detail=f"Sem espaço no disco de imagens: {exc}")
     base = settings.public_url.strip().rstrip("/")
     return {"url": f"{base}/uploads/{name}"}
