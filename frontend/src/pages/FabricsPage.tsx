@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
-import { AlertTriangle, Scroll, Trash2, X } from 'lucide-react'
+import { DndContext, DragEndEvent, useDraggable, useDroppable } from '@dnd-kit/core'
+import { AlertTriangle, Clock3, Scroll, Trash2, X } from 'lucide-react'
 import { api } from '../api/client'
 import { toast } from '../lib/toast'
 import { UploadInput } from '../components/UploadInput'
@@ -15,27 +16,53 @@ export const FABRIC_STATUS_NAMES: Record<string, string> = {
   cancelada: 'Cancelada',
 }
 
-const STATUS_TONES: Record<string, string> = {
-  pedido: 'yellow',
-  envio_em_curso: 'sky',
-  recebida: 'mint',
-  tingimento: 'lilac',
-  cancelada: 'pink',
-}
-
 const EMPTY_FORM = {
   reference: '', supplier_id: '', development_id: '', color: '', quantity_meters: '',
   article: '', composition: '', width: '', grammage: '', price_per_meter: '', leadtime: '',
   requested_at: '', notes: '', cover_url: '',
 }
 
+function FabricCard({ item, onOpen }: { item: FabricRequest; onOpen: () => void }) {
+  const { attributes, listeners, setNodeRef, transform } = useDraggable({ id: item.id, data: item })
+  const style = transform ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` } : undefined
+  return <article ref={setNodeRef} style={style} className={`development-card ${item.needs_reminder ? 'risk-high' : ''}`} {...listeners} {...attributes} onDoubleClick={onOpen}>
+    {item.cover_url && <img src={item.cover_url} alt="" className="card-cover"/>}
+    <div className="card-body">
+      <div className="card-title">{item.reference}</div>
+      {item.color && <div className="card-subtitle">{item.color}</div>}
+      <div className="chips">
+        {item.supplier_name && <span className="chip tone-lilac">{item.supplier_name}</span>}
+        {item.development_code && <span className="chip tone-sky">{item.development_code}</span>}
+      </div>
+      <div className="card-footer">
+        {item.days_pending != null && <span className={item.needs_reminder ? 'eta-risk' : ''}>
+          {item.needs_reminder ? <AlertTriangle size={14}/> : <Clock3 size={14}/>}{item.days_pending} d à espera
+        </span>}
+        {item.days_to_receive != null && <span><Clock3 size={14}/>recebida em {item.days_to_receive} d</span>}
+        {item.quantity_meters ? <b>{item.quantity_meters} m</b> : null}
+      </div>
+    </div>
+  </article>
+}
+
+function FabricColumn({ id, title, items, onOpen }: { id: string; title: string; items: FabricRequest[]; onOpen: (item: FabricRequest) => void }) {
+  const { setNodeRef, isOver } = useDroppable({ id })
+  const [limit, setLimit] = useState(20)
+  return <section ref={setNodeRef} className={`board-column ${isOver ? 'is-over' : ''}`}>
+    <div className="column-header"><strong>{title}</strong><span>{items.length}</span></div>
+    <div className="column-cards">{items.slice(0, limit).map(item => <FabricCard key={item.id} item={item} onOpen={() => onOpen(item)}/>)}</div>
+    {items.length > limit && <button className="add-card" onClick={() => setLimit(v => v + 100)}>Mostrar mais {items.length - limit} cartões...</button>}
+  </section>
+}
+
 export function FabricsPage() {
   const [data, setData] = useState<Response>({ statuses: [], items: [] })
   const [suppliers, setSuppliers] = useState<Supplier[]>([])
   const [developments, setDevelopments] = useState<Development[]>([])
-  const [statusFilter, setStatusFilter] = useState('')
+  const [query, setQuery] = useState('')
   const [supplierFilter, setSupplierFilter] = useState('')
   const [creating, setCreating] = useState(false)
+  const [selected, setSelected] = useState<FabricRequest | null>(null)
   const [form, setForm] = useState(EMPTY_FORM)
 
   const load = () => api.get<Response>('/fabric-requests').then(setData)
@@ -45,33 +72,46 @@ export function FabricsPage() {
     api.get<Development[]>('/developments').then(setDevelopments)
   }, [])
 
-  const visible = useMemo(() => {
-    const filtered = data.items.filter(item =>
-      (!statusFilter || item.status === statusFilter) &&
-      (!supplierFilter || String(item.supplier_id) === supplierFilter))
-    // Pendentes primeiro, os mais antigos no topo — é a lista de "quem relançar hoje".
-    return [...filtered].sort((a, b) => (b.days_pending ?? -1) - (a.days_pending ?? -1))
-  }, [data, statusFilter, supplierFilter])
+  const visible = useMemo(() => data.items.filter(item => {
+    const text = `${item.reference} ${item.color || ''} ${item.supplier_name || ''} ${item.development_code || ''}`.toLowerCase()
+    if (query && !text.includes(query.toLowerCase())) return false
+    if (supplierFilter && String(item.supplier_id) !== supplierFilter) return false
+    return true
+  }), [data, query, supplierFilter])
+
+  const grouped = useMemo(() => Object.fromEntries(data.statuses.map(status => {
+    const items = visible.filter(item => item.status === status)
+    items.sort((a, b) => (b.days_pending ?? -1) - (a.days_pending ?? -1))
+    return [status, items]
+  })), [data.statuses, visible])
 
   const pendingCount = data.items.filter(item => item.days_pending != null).length
   const reminderCount = data.items.filter(item => item.needs_reminder).length
 
-  async function updateStatus(id: number, status: string) {
-    const updated = await api.patch<FabricRequest>(`/fabric-requests/${id}`, { status })
+  async function patchItem(id: number, payload: Record<string, unknown>, message?: string) {
+    const updated = await api.patch<FabricRequest>(`/fabric-requests/${id}`, payload)
     setData(current => ({ ...current, items: current.items.map(item => item.id === id ? updated : item) }))
-    toast('success', `Malha em "${FABRIC_STATUS_NAMES[status] || status}".`)
+    setSelected(current => current?.id === id ? updated : current)
+    if (message) toast('success', message)
+    return updated
   }
 
-  async function linkDevelopment(id: number, developmentId: string) {
-    const updated = await api.patch<FabricRequest>(`/fabric-requests/${id}`, { development_id: developmentId ? Number(developmentId) : null })
-    setData(current => ({ ...current, items: current.items.map(item => item.id === id ? updated : item) }))
-    toast('success', updated.development_code ? `Malha associada ao modelo ${updated.development_code}.` : 'Associação ao modelo removida.')
+  function handleDragEnd(event: DragEndEvent) {
+    if (!event.over) return
+    const item = event.active.data.current as FabricRequest
+    const status = String(event.over.id)
+    if (item.status !== status) {
+      const previous = data
+      setData(current => ({ ...current, items: current.items.map(i => i.id === item.id ? { ...i, status } : i) }))
+      patchItem(item.id, { status }, `Malha em "${FABRIC_STATUS_NAMES[status] || status}".`).catch(() => setData(previous))
+    }
   }
 
   async function remove(id: number) {
     if (!window.confirm('Eliminar este pedido de malha?')) return
     await api.del(`/fabric-requests/${id}`)
     setData(current => ({ ...current, items: current.items.filter(item => item.id !== id) }))
+    setSelected(null)
     toast('success', 'Pedido eliminado.')
   }
 
@@ -99,58 +139,50 @@ export function FabricsPage() {
     void load()
   }
 
-  return <div className="content-page">
+  return <div className="board-page">
     <div className="page-heading">
       <div>
         <h1>Malhas</h1>
-        <p>{pendingCount} pedidos em curso · {reminderCount} à espera há 5+ dias. Os mais atrasados aparecem primeiro.</p>
+        <p>{pendingCount} em curso · {reminderCount} há 5+ dias sem chegar ⚠. Arraste os cartões; duplo clique abre.</p>
       </div>
       <button className="primary-button" onClick={() => setCreating(true)}>+ Pedir malha</button>
     </div>
     <div className="filter-bar">
       <Scroll size={16}/>
-      <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
-        <option value="">Todos os estados</option>
-        {data.statuses.map(status => <option key={status} value={status}>{FABRIC_STATUS_NAMES[status] || status}</option>)}
-      </select>
+      <input placeholder="Pesquisar referência, cor, modelo..." value={query} onChange={e => setQuery(e.target.value)}/>
       <select value={supplierFilter} onChange={e => setSupplierFilter(e.target.value)}>
         <option value="">Todos os fornecedores</option>
         {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
       </select>
-      {(statusFilter || supplierFilter) && <button className="clear-filters" onClick={() => { setStatusFilter(''); setSupplierFilter('') }}>Limpar</button>}
+      {(query || supplierFilter) && <button className="clear-filters" onClick={() => { setQuery(''); setSupplierFilter('') }}>Limpar</button>}
     </div>
-    <div className="fabric-list">
-      {visible.map(item => <article className={`fabric-row ${item.needs_reminder ? 'reminder' : ''}`} key={item.id}>
-        {item.cover_url ? <img src={item.cover_url} alt=""/> : <div className="fabric-thumb"><Scroll size={19}/></div>}
-        <div className="fabric-main">
-          <strong>{item.reference}{item.color ? ` · ${item.color}` : ''}</strong>
-          <span>{[item.article, item.composition, item.grammage ? `${item.grammage} g` : null, item.width ? `${item.width} m` : null].filter(Boolean).join(' · ') || 'Sem ficha'}</span>
-          <span>{item.development_code ? `Modelo ${item.development_code}` : 'Sem modelo associado'}{item.supplier_name ? ` · ${item.supplier_name}` : ''}</span>
-          {item.notes && <em>{item.notes}</em>}
-        </div>
-        <div className="fabric-side">
-          {item.days_pending != null && <span className={`risk-pill ${item.needs_reminder ? 'high' : 'medium'}`}>
-            {item.needs_reminder && <AlertTriangle size={13}/>}{item.days_pending} d à espera
-          </span>}
-          {item.days_to_receive != null && <span className="risk-pill low">recebida em {item.days_to_receive} d</span>}
-          {(item.quantity_meters || item.price_per_meter) && <small>
-            {item.quantity_meters ? `${item.quantity_meters} mts` : ''}{item.quantity_meters && item.price_per_meter ? ' · ' : ''}{item.price_per_meter ? `${item.price_per_meter.toFixed(2)} €/mt` : ''}{item.leadtime ? ` · ${item.leadtime}` : ''}
-          </small>}
-          <div className="fabric-actions">
-            <select className="status-select" value={item.development_id ?? ''} onChange={e => void linkDevelopment(item.id, e.target.value)} title="Modelo associado">
-              <option value="">Sem modelo</option>
-              {developments.map(d => <option key={d.id} value={d.id}>{d.code}</option>)}
-            </select>
-            <select className="status-select" value={item.status} onChange={e => void updateStatus(item.id, e.target.value)}>
-              {data.statuses.map(status => <option key={status} value={status}>{FABRIC_STATUS_NAMES[status] || status}</option>)}
-            </select>
-            <button className="danger" onClick={() => void remove(item.id)}><Trash2 size={15}/></button>
-          </div>
-        </div>
-        <span className={`chip tone-${STATUS_TONES[item.status] || 'lilac'} fabric-status`}>{FABRIC_STATUS_NAMES[item.status] || item.status}</span>
-      </article>)}
-      {visible.length === 0 && <p className="empty-note">Sem pedidos de malha para estes filtros.</p>}
-    </div>
+    <DndContext onDragEnd={handleDragEnd}>
+      <div className="board-scroll">
+        {data.statuses.map(status => <FabricColumn key={status} id={status} title={FABRIC_STATUS_NAMES[status] || status} items={grouped[status] || []} onOpen={setSelected}/>)}
+      </div>
+    </DndContext>
+    {selected && <div className="modal-backdrop" onMouseDown={() => setSelected(null)}>
+      <div className="create-modal fabric-detail" onMouseDown={e => e.stopPropagation()}>
+        <button type="button" className="modal-close" onClick={() => setSelected(null)}><X/></button>
+        {selected.cover_url && <img className="fabric-detail-photo" src={selected.cover_url} alt=""/>}
+        <h2>{selected.reference}{selected.color ? ` · ${selected.color}` : ''}</h2>
+        <p>{[selected.article, selected.composition, selected.grammage ? `${selected.grammage} g` : null, selected.width ? `${selected.width} m` : null].filter(Boolean).join(' · ') || 'Sem ficha da etiqueta'}
+          {selected.quantity_meters ? ` — ${selected.quantity_meters} metros` : ''}{selected.price_per_meter ? ` — ${selected.price_per_meter.toFixed(2)} €/mt` : ''}{selected.leadtime ? ` — ${selected.leadtime}` : ''}</p>
+        {selected.notes && <p className="fabric-notes">{selected.notes}</p>}
+        <label>Estado<select value={selected.status} onChange={e => void patchItem(selected.id, { status: e.target.value }, 'Estado atualizado.')}>
+          {data.statuses.map(status => <option key={status} value={status}>{FABRIC_STATUS_NAMES[status] || status}</option>)}
+        </select></label>
+        <label>Fornecedor<select value={selected.supplier_id ?? ''} onChange={e => void patchItem(selected.id, { supplier_id: e.target.value ? Number(e.target.value) : null }, 'Fornecedor atualizado.')}>
+          <option value="">Sem fornecedor</option>
+          {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+        </select></label>
+        <label>Modelo associado<select value={selected.development_id ?? ''} onChange={e => void patchItem(selected.id, { development_id: e.target.value ? Number(e.target.value) : null }, 'Modelo atualizado.')}>
+          <option value="">Sem modelo</option>
+          {developments.map(d => <option key={d.id} value={d.id}>{d.code}</option>)}
+        </select></label>
+        <button className="action danger" onClick={() => void remove(selected.id)}><Trash2 size={15}/> Eliminar pedido</button>
+      </div>
+    </div>}
     {creating && <div className="modal-backdrop" onMouseDown={() => setCreating(false)}>
       <form className="create-modal wide" onSubmit={submit} onMouseDown={e => e.stopPropagation()}>
         <button type="button" className="modal-close" onClick={() => setCreating(false)}><X/></button>
