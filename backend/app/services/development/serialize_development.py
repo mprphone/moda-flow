@@ -1,3 +1,4 @@
+import json
 from app.models.development import Development
 from app.services.pipeline.next_action import get_next_action
 from app.services.pipeline.timing import days_in_current_stage
@@ -7,6 +8,9 @@ from app.services.suggestions.development_suggestions import build_suggestions, 
 def serialize_development(development: Development) -> dict:
     suggestions = build_suggestions(development)
     active_tasks = [task for task in development.tasks if task.status != "done"]
+    images = json.loads(development.images_json or "[]")
+    if development.cover_url and development.cover_url not in images:
+        images.insert(0, development.cover_url)
     return {
         "id": development.id,
         "code": development.code,
@@ -15,6 +19,7 @@ def serialize_development(development: Development) -> dict:
         "client_name": development.client.name,
         "owner_name": development.owner_name,
         "cover_url": development.cover_url,
+        "images": images,
         "current_stage": development.current_stage,
         "status": development.status,
         "waiting_reason": development.waiting_reason,

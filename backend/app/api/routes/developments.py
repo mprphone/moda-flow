@@ -1,3 +1,4 @@
+import json
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -55,6 +56,9 @@ def patch_development(development_id: int, payload: QuickUpdate, db: Session = D
         raise HTTPException(status_code=404, detail="Desenvolvimento não encontrado")
     data = payload.model_dump(exclude_unset=True)
     label_ids = data.pop("label_ids", None)
+    images = data.pop("images", None)
+    if images is not None:
+        item.images_json = json.dumps(list(dict.fromkeys(images)))
     if label_ids is not None:
         item.labels = list(db.scalars(select(Label).where(Label.id.in_(label_ids))).all())
     for key, value in data.items():

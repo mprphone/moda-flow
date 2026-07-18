@@ -16,6 +16,7 @@ export type Development = {
   client_name: string
   owner_name: string
   cover_url?: string
+  images: string[]
   current_stage: string
   status: string
   waiting_reason?: string

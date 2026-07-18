@@ -29,6 +29,7 @@ class QuickUpdate(ORMModel):
     production_quantity: int | None = None
     owner_name: str | None = None
     cover_url: str | None = None
+    images: list[str] | None = None
     label_ids: list[int] | None = None
 
 

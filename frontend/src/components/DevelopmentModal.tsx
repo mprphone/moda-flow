@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { X, Sparkles, Clock3, UserRound, CalendarDays, ArrowRight, Layers3, Factory, Trash2, TrendingUp, MessageCircle, StickyNote, Scroll, Route, ListChecks, UsersRound } from 'lucide-react'
+import { X, Sparkles, Clock3, UserRound, CalendarDays, ArrowRight, Layers3, Factory, Trash2, TrendingUp, MessageCircle, StickyNote, Scroll, Route, ListChecks, UsersRound, ImagePlus, Maximize2 } from 'lucide-react'
 import { api } from '../api/client'
 import { toast } from '../lib/toast'
 import { StageTrace } from './StageTrace'
@@ -64,11 +64,14 @@ export function DevelopmentModal({ item, labels, onClose, onMove, onStatus, onRe
   const [ownerText, setOwnerText] = useState(item.owner_name)
   const [fabricForm, setFabricForm] = useState({ reference: '', supplier_id: '', quantity_meters: '', color: '' })
   const [addingFabric, setAddingFabric] = useState(false)
+  const [activePhoto, setActivePhoto] = useState(item.cover_url || '')
+  const [lightbox, setLightbox] = useState(false)
+  const [uploadingPhoto, setUploadingPhoto] = useState(false)
 
   useEffect(() => {
     api.get<DevelopmentDetail>(`/developments/${item.id}`).then(setDetail).catch(() => setDetail(null))
   }, [item.id, item.updated_at, refresh])
-  useEffect(() => { setNotes(item.description || ''); setOwnerText(item.owner_name) }, [item.id, item.description, item.owner_name])
+  useEffect(() => { setNotes(item.description || ''); setOwnerText(item.owner_name); setActivePhoto(item.cover_url || item.images?.[0] || '') }, [item.id, item.description, item.owner_name])
   useEffect(() => {
     api.get<Supplier[]>('/suppliers').then(setSuppliers).catch(() => {})
     api.get<TeamUser[]>('/users').then(u => { setTeamUsers(u); setDesigners(u.map(x => x.name)) }).catch(() => {})
@@ -174,6 +177,30 @@ export function DevelopmentModal({ item, labels, onClose, onMove, onStatus, onRe
     await refreshStructured(await api.get<Development>(`/developments/${item.id}`))
   }
 
+  async function savePhotos(images: string[], coverUrl = item.cover_url || images[0] || null) {
+    const updated = await api.patch<Development>(`/developments/${item.id}`, { images, cover_url: coverUrl })
+    onStructuredChange(updated)
+    setDetail(current => current ? { ...current, ...updated } : current)
+    setActivePhoto(coverUrl || images[0] || '')
+  }
+
+  async function uploadPhoto(file?: File) {
+    if (!file) return
+    setUploadingPhoto(true)
+    try {
+      const uploaded = await api.upload(file)
+      const images = [...new Set([...(detail?.images || item.images || []), uploaded.url])]
+      await savePhotos(images, item.cover_url || uploaded.url)
+      setActivePhoto(uploaded.url)
+      toast('success', 'Fotografia adicionada à galeria.')
+    } finally { setUploadingPhoto(false) }
+  }
+
+  async function removePhoto(url: string) {
+    const images = (detail?.images || item.images || []).filter(image => image !== url)
+    await savePhotos(images, item.cover_url === url ? images[0] || null : item.cover_url)
+  }
+
   const completedStages = detail ? detail.stage_history.filter(e => e.ended_at).length : 0
   const totalDays = detail ? Math.round(detail.stage_history.reduce((sum, e) => sum + (e.days || 0), 0)) : 0
   // Na fase de proposta só se mostram as fases dessa etapa; malhas/produção ainda não se aplicam.
@@ -182,9 +209,15 @@ export function DevelopmentModal({ item, labels, onClose, onMove, onStatus, onRe
   const showFabrics = !inProposal || (detail?.fabric_requests.length ?? 0) > 0
   const showProductions = (detail?.productions.length ?? 0) > 0
 
-  return <div className="modal-backdrop" onMouseDown={onClose}><div className="modal-card" onMouseDown={e => e.stopPropagation()}>
+  const photos = [...new Set([...(detail?.images || item.images || []), ...(item.cover_url ? [item.cover_url] : [])])]
+
+  return <div className="modal-backdrop" onMouseDown={onClose}><div className="modal-card development-detail-modal" onMouseDown={e => e.stopPropagation()}>
     <button className="modal-close" onClick={onClose}><X/></button>
-    <div className="modal-cover" style={{backgroundImage: `url(${item.cover_url || ''})`}}></div>
+    <div className="development-photo-hero">
+      {activePhoto ? <img src={activePhoto} alt={item.title} onClick={() => setLightbox(true)}/> : <div className="development-photo-empty"><ImagePlus/><span>Adicione fotografias do modelo</span></div>}
+      <div className="development-photo-tools"><label className="photo-tool"><ImagePlus size={16}/>{uploadingPhoto ? 'A enviar…' : 'Adicionar foto'}<input hidden type="file" accept="image/*" onChange={e => { void uploadPhoto(e.target.files?.[0]); e.target.value = '' }}/></label>{activePhoto && activePhoto !== item.cover_url && <button type="button" className="photo-tool" onClick={() => void savePhotos(photos, activePhoto)}>Definir como capa</button>}{activePhoto && <button type="button" className="photo-tool" onClick={() => setLightbox(true)}><Maximize2 size={16}/>Ampliar</button>}</div>
+      {photos.length > 0 && <div className="development-thumbnails">{photos.map(photo => <button type="button" key={photo} className={photo === activePhoto ? 'active' : ''} onClick={() => setActivePhoto(photo)}><img src={photo} alt=""/><span onClick={event => { event.stopPropagation(); void removePhoto(photo) }}>×</span></button>)}</div>}
+    </div>
     <div className="modal-main">
       <div className="modal-content">
         <div className="eyebrow">{item.client_name} · {STAGE_LABELS[item.current_stage]}</div>
@@ -358,5 +391,6 @@ export function DevelopmentModal({ item, labels, onClose, onMove, onStatus, onRe
         <div className="mini-note">O botão grande avança de fase. Estas ações registam esperas e bloqueios.</div>
       </aside>
     </div>
+    {lightbox && activePhoto && <div className="photo-lightbox" onClick={() => setLightbox(false)}><button type="button" onClick={() => setLightbox(false)}><X/></button><img src={activePhoto} alt={item.title}/></div>}
   </div></div>
 }

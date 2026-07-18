@@ -17,6 +17,7 @@ class Development(Base):
     client_id: Mapped[int] = mapped_column(ForeignKey("clients.id"), index=True)
     owner_name: Mapped[str] = mapped_column(String(120))
     cover_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    images_json: Mapped[str | None] = mapped_column(Text, nullable=True)
     current_stage: Mapped[str] = mapped_column(String(50), default=Stage.NOVO.value, index=True)
     status: Mapped[str] = mapped_column(String(50), default=DevelopmentStatus.ACTIVE.value, index=True)
     waiting_reason: Mapped[str | None] = mapped_column(Text, nullable=True)

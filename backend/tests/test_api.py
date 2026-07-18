@@ -55,6 +55,12 @@ def test_development_lifecycle(client, db_session):
 
     noted = client.patch(f"/api/developments/{dev_id}", json={"description": "Malha 100% algodão, gramagem 180"}, headers=headers)
     assert noted.status_code == 200
+    gallery = client.patch(f"/api/developments/{dev_id}", json={
+        "cover_url": "https://example.com/front.jpg",
+        "images": ["https://example.com/front.jpg", "https://example.com/back.jpg"],
+    }, headers=headers)
+    assert gallery.status_code == 200
+    assert gallery.json()["images"] == ["https://example.com/front.jpg", "https://example.com/back.jpg"]
     assert noted.json()["description"] == "Malha 100% algodão, gramagem 180"
 
     detail = client.get(f"/api/developments/{dev_id}", headers=headers)
