@@ -95,7 +95,7 @@ export function DevelopmentModal({ item, labels, onClose, onMove, onStatus, onRe
     <div className="modal-main">
       <div className="modal-content">
         <div className="eyebrow">{item.client_name} · {STAGE_LABELS[item.current_stage]}</div>
-        <h2>{item.code} — {item.title}</h2>
+        <h2>{item.title === item.code ? item.title : `${item.code} — ${item.title}`}</h2>
         <div className="quick-meta">
           <span><UserRound size={16}/>{item.owner_name}</span>
           <span><Clock3 size={16}/>{item.days_in_stage} dias nesta fase</span>

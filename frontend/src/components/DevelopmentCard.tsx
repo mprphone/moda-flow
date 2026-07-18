@@ -9,7 +9,7 @@ export function DevelopmentCard({ item, onOpen }: { item: Development; onOpen: (
     {item.cover_url && <img src={item.cover_url} alt="" className="card-cover"/>}
     <div className="card-body">
       <div className="card-title">{item.code}</div>
-      <div className="card-subtitle">{item.title}</div>
+      {item.title !== item.code && <div className="card-subtitle">{item.title}</div>}
       <div className="chips">
         <span className="chip client">{item.client_name}</span>
         {item.status.includes('waiting') && <span className="chip waiting">Em espera</span>}
