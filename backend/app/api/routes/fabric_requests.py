@@ -6,6 +6,8 @@ from app.core.db import get_db
 from app.core.timeutil import today
 from app.models.fabric_request import FABRIC_STATUSES, FabricRequest
 from app.models.label import Label
+from app.models.development import Development
+from app.models.material_link import FabricDevelopmentLink
 from app.schemas.common import ORMModel
 from app.services.fabrics.serialize_request import serialize_request
 
@@ -15,7 +17,30 @@ LOAD_OPTIONS = (
     joinedload(FabricRequest.supplier),
     joinedload(FabricRequest.development),
     selectinload(FabricRequest.labels),
+    selectinload(FabricRequest.development_links).joinedload(FabricDevelopmentLink.development),
 )
+
+RELATION_TYPES = {"candidate", "tested", "approved", "production", "alternative", "rejected", "legacy"}
+
+
+class DevelopmentLinkCreate(ORMModel):
+    development_id: int
+    relation_type: str = "candidate"
+
+
+class DevelopmentLinkUpdate(ORMModel):
+    relation_type: str
+
+
+def ensure_development_link(db: Session, item: FabricRequest, development_id: int | None, relation_type: str = "candidate"):
+    if not development_id:
+        return
+    existing = db.scalar(select(FabricDevelopmentLink).where(
+        FabricDevelopmentLink.fabric_request_id == item.id,
+        FabricDevelopmentLink.development_id == development_id,
+    ))
+    if not existing:
+        db.add(FabricDevelopmentLink(fabric_request_id=item.id, development_id=development_id, relation_type=relation_type))
 
 
 class FabricRequestCreate(ORMModel):
@@ -63,6 +88,8 @@ def post_fabric_request(payload: FabricRequestCreate, db: Session = Depends(get_
     if label_ids:
         item.labels = list(db.scalars(select(Label).where(Label.id.in_(label_ids))).all())
     db.add(item)
+    db.flush()
+    ensure_development_link(db, item, item.development_id)
     db.commit()
     return serialize_request(load_by_id(db, item.id))
 
@@ -84,8 +111,46 @@ def patch_fabric_request(request_id: int, payload: FabricRequestUpdate, db: Sess
             data["received_at"] = today()
     for key, value in data.items():
         setattr(item, key, value)
+    if "development_id" in data:
+        ensure_development_link(db, item, data["development_id"])
     db.commit()
     return serialize_request(load_by_id(db, request_id))
+
+
+@router.post("/{request_id}/developments", status_code=201)
+def add_development_link(request_id: int, payload: DevelopmentLinkCreate, db: Session = Depends(get_db)):
+    item = db.get(FabricRequest, request_id)
+    if not item or not db.get(Development, payload.development_id):
+        raise HTTPException(status_code=404, detail="Malha ou desenvolvimento não encontrado")
+    if payload.relation_type not in RELATION_TYPES:
+        raise HTTPException(status_code=422, detail="Tipo de ligação inválido")
+    ensure_development_link(db, item, payload.development_id, payload.relation_type)
+    db.commit()
+    return serialize_request(load_by_id(db, request_id))
+
+
+@router.patch("/{request_id}/developments/{link_id}")
+def update_development_link(request_id: int, link_id: int, payload: DevelopmentLinkUpdate, db: Session = Depends(get_db)):
+    link = db.get(FabricDevelopmentLink, link_id)
+    if not link or link.fabric_request_id != request_id:
+        raise HTTPException(status_code=404, detail="Ligação não encontrada")
+    if payload.relation_type not in RELATION_TYPES:
+        raise HTTPException(status_code=422, detail="Tipo de ligação inválido")
+    link.relation_type = payload.relation_type
+    db.commit()
+    return serialize_request(load_by_id(db, request_id))
+
+
+@router.delete("/{request_id}/developments/{link_id}", status_code=204)
+def remove_development_link(request_id: int, link_id: int, db: Session = Depends(get_db)):
+    link = db.get(FabricDevelopmentLink, link_id)
+    if not link or link.fabric_request_id != request_id:
+        raise HTTPException(status_code=404, detail="Ligação não encontrada")
+    item = db.get(FabricRequest, request_id)
+    if item and item.development_id == link.development_id:
+        item.development_id = None
+    db.delete(link)
+    db.commit()
 
 
 @router.delete("/{request_id}", status_code=204)

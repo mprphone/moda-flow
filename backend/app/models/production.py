@@ -25,6 +25,7 @@ class Production(Base):
     client = relationship("Client")
     events = relationship("ProductionEvent", back_populates="production", cascade="all, delete-orphan")
     comments = relationship("Comment", back_populates="production", cascade="all, delete-orphan")
+    fabric_links = relationship("ProductionFabricLink", back_populates="production", cascade="all, delete-orphan")
 
 
 class ProductionEvent(Base):

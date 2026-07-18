@@ -79,6 +79,8 @@ export function FabricsPage() {
   const [creating, setCreating] = useState(false)
   const [selected, setSelected] = useState<FabricRequest | null>(null)
   const [form, setForm] = useState(EMPTY_FORM)
+  const [newDevelopmentId, setNewDevelopmentId] = useState('')
+  const [relationType, setRelationType] = useState('candidate')
 
   // O arrasto só arma após 6px de movimento — o clique simples abre o cartão.
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }))
@@ -151,6 +153,25 @@ export function FabricsPage() {
     toast('success', 'Pedido eliminado.')
   }
 
+  async function addDevelopment(id: number) {
+    if (!newDevelopmentId) return
+    const updated = await api.post<FabricRequest>(`/fabric-requests/${id}/developments`, {
+      development_id: Number(newDevelopmentId), relation_type: relationType,
+    })
+    setData(current => ({ ...current, items: current.items.map(item => item.id === id ? updated : item) }))
+    setSelected(updated)
+    setNewDevelopmentId('')
+    toast('success', 'Modelo ligado à malha.')
+  }
+
+  async function removeDevelopment(id: number, linkId?: number) {
+    if (!linkId) return
+    await api.del(`/fabric-requests/${id}/developments/${linkId}`)
+    const updated = await api.get<Response>('/fabric-requests')
+    setData(updated)
+    setSelected(updated.items.find(item => item.id === id) || null)
+  }
+
   async function submit(e: React.FormEvent) {
     e.preventDefault()
     await api.post('/fabric-requests', {
@@ -221,10 +242,23 @@ export function FabricsPage() {
           <option value="">Sem fornecedor</option>
           {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
         </select></label>
-        <label>Modelo associado<select value={selected.development_id ?? ''} onChange={e => void patchItem(selected.id, { development_id: e.target.value ? Number(e.target.value) : null }, 'Modelo atualizado.')}>
-          <option value="">Sem modelo</option>
-          {developments.map(d => <option key={d.id} value={d.id}>{d.code}</option>)}
-        </select></label>
+        <div className="history-section">
+          <strong>Modelos associados</strong>
+          <div className="chips">{selected.developments.map(d => <span className="chip tone-sky" key={d.id}>
+            {d.code} · {d.relation_type}{d.link_id && <button type="button" aria-label={`Remover ${d.code}`} onClick={() => void removeDevelopment(selected.id, d.link_id)}>×</button>}
+          </span>)}</div>
+          {selected.developments.length === 0 && <p className="empty-note">Ainda sem modelo associado.</p>}
+          <div className="production-form-grid">
+            <label>Adicionar modelo<select value={newDevelopmentId} onChange={e => setNewDevelopmentId(e.target.value)}>
+              <option value="">Selecionar...</option>
+              {developments.filter(d => !selected.developments.some(link => link.id === d.id)).map(d => <option key={d.id} value={d.id}>{d.code} — {d.title}</option>)}
+            </select></label>
+            <label>Relação<select value={relationType} onChange={e => setRelationType(e.target.value)}>
+              <option value="candidate">Candidata</option><option value="tested">Testada</option><option value="approved">Aprovada</option><option value="production">Produção</option><option value="alternative">Alternativa</option><option value="rejected">Rejeitada</option>
+            </select></label>
+          </div>
+          <button type="button" className="secondary-button" disabled={!newDevelopmentId} onClick={() => void addDevelopment(selected.id)}>Associar modelo</button>
+        </div>
         <button className="action danger" onClick={() => void remove(selected.id)}><Trash2 size={15}/> Eliminar pedido</button>
       </div>
     </div>}

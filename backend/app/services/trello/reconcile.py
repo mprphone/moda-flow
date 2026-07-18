@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from app.models.development import Development
 from app.models.fabric_request import FabricRequest
 from app.models.production import Production
+from app.models.material_link import FabricDevelopmentLink
 
 
 CODE_PATTERN = re.compile(r"\b([A-Z]{1,3})\s*[_:]\s*(B\d{3})\s*_\s*(\d{2,3})(?:\s*_\s*(V\d+))?\b", re.IGNORECASE)
@@ -23,7 +24,19 @@ def normalize_code(value: str) -> str:
 
 
 def extract_codes(value: str) -> set[str]:
-    return {"_".join(part.upper() for part in match.groups() if part) for match in CODE_PATTERN.finditer(value or "")}
+    text = value or ""
+    codes = {"_".join(part.upper() for part in match.groups() if part) for match in CODE_PATTERN.finditer(text)}
+    # Expande listas abreviadas usadas no Trello: BP_B003_024/025/026 ou JF_B003_110 + 122.
+    for match in CODE_PATTERN.finditer(text):
+        prefix, family, number, version = match.groups()
+        if version:
+            continue
+        tail = text[match.end():]
+        extra = re.match(r"(?:\s*(?:/|\+|,|e)\s*\d{2,3})+", tail, re.IGNORECASE)
+        if extra:
+            for extra_number in re.findall(r"\d{2,3}", extra.group()):
+                codes.add(f"{prefix.upper()}_{family.upper()}_{extra_number}")
+    return codes
 
 
 def normalize_text(value: str) -> str:
@@ -95,18 +108,27 @@ def reconcile_links(
         else:
             report.productions_unmatched += 1
 
-    for fabric in db.scalars(select(FabricRequest).where(FabricRequest.development_id.is_(None))).all():
+    for fabric in db.scalars(select(FabricRequest)).all():
         text = f"{fabric.reference}\n{fabric.notes or ''}"
         card = fabric_index.get(normalize_text(fabric.reference))
         if card:
             text += f"\n{card.text}"
-        development, ambiguous = development_for_text(text, developments)
-        if development:
-            report.fabrics_linked += 1
+        matches = {developments[code].id: developments[code] for code in extract_codes(text) if code in developments}
+        existing_ids = {link.development_id for link in fabric.development_links}
+        new_matches = [development for development_id, development in matches.items() if development_id not in existing_ids]
+        if new_matches:
+            report.fabrics_linked += len(new_matches)
             if apply:
-                fabric.development_id = development.id
-        elif ambiguous:
+                for development in new_matches:
+                    db.add(FabricDevelopmentLink(
+                        fabric_request_id=fabric.id, development_id=development.id, relation_type="candidate"
+                    ))
+                if len(matches) == 1 and fabric.development_id is None:
+                    fabric.development_id = new_matches[0].id
+        elif len(matches) > 1:
             report.ambiguous += 1
+        elif matches:
+            pass
         else:
             report.fabrics_unmatched += 1
 

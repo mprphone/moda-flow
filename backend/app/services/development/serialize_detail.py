@@ -1,7 +1,8 @@
-from sqlalchemy import select
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy import or_, select
+from sqlalchemy.orm import Session, joinedload, selectinload
 from app.core.timeutil import utcnow
 from app.models.fabric_request import FabricRequest
+from app.models.material_link import FabricDevelopmentLink
 from app.services.analytics.stage_stats import average_stage_durations, estimate_completion
 from app.services.development.serialize_development import serialize_development
 from app.services.fabrics.serialize_request import serialize_request
@@ -33,8 +34,9 @@ def serialize_detail(db: Session, development) -> dict:
     ]
     fabric_stmt = (
         select(FabricRequest)
-        .where(FabricRequest.development_id == development.id)
-        .options(joinedload(FabricRequest.supplier), joinedload(FabricRequest.development))
+        .outerjoin(FabricDevelopmentLink, FabricDevelopmentLink.fabric_request_id == FabricRequest.id)
+        .where(or_(FabricRequest.development_id == development.id, FabricDevelopmentLink.development_id == development.id))
+        .options(joinedload(FabricRequest.supplier), joinedload(FabricRequest.development), selectinload(FabricRequest.labels), selectinload(FabricRequest.development_links).joinedload(FabricDevelopmentLink.development))
         .order_by(FabricRequest.requested_at.desc())
     )
     data["fabric_requests"] = [serialize_request(item) for item in db.scalars(fabric_stmt).unique().all()]

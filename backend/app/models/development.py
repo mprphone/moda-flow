@@ -35,6 +35,7 @@ class Development(Base):
     labels = relationship("Label", secondary=development_labels, back_populates="developments")
     assignees = relationship("DevelopmentAssignee", back_populates="development", cascade="all, delete-orphan")
     tasks = relationship("DevelopmentTask", back_populates="development", cascade="all, delete-orphan")
+    fabric_links = relationship("FabricDevelopmentLink", back_populates="development", cascade="all, delete-orphan")
 
 
 class DevelopmentAssignee(Base):

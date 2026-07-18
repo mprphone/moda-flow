@@ -71,6 +71,14 @@ def test_production_cross_links(client, db_session):
     dev_detail = client.get(f"/api/developments/{dev_id}", headers=headers).json()
     assert any(p["id"] == prod_id for p in dev_detail["productions"])
 
+    fabric_id = client.get("/api/fabric-requests", headers=headers).json()["items"][0]["id"]
+    usage = client.post(f"/api/productions/{prod_id}/fabrics", json={
+        "fabric_request_id": fabric_id, "usage_status": "used", "note": "Cor aprovada",
+    }, headers=headers)
+    assert usage.status_code == 201
+    assert usage.json()["used_fabrics"][0]["reference"] == "MALHA X"
+    assert usage.json()["used_fabrics"][0]["usage_note"] == "Cor aprovada"
+
 
 def test_development_stage_note_upsert(client, db_session):
     headers = auth(client, db_session)

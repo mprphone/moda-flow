@@ -8,6 +8,18 @@ PENDING_STATUSES = {"pedido", "envio_em_curso"}
 def serialize_request(item: FabricRequest) -> dict:
     days_pending = (today() - item.requested_at).days if item.status in PENDING_STATUSES else None
     days_to_receive = (item.received_at - item.requested_at).days if item.received_at else None
+    developments = {}
+    if item.development:
+        developments[item.development.id] = {
+            "link_id": None, "id": item.development.id, "code": item.development.code,
+            "title": item.development.title, "relation_type": "legacy",
+        }
+    for link in item.development_links:
+        developments[link.development_id] = {
+            "link_id": link.id, "id": link.development.id, "code": link.development.code,
+            "title": link.development.title, "relation_type": link.relation_type,
+        }
+    primary = next(iter(developments.values()), None)
     return {
         "id": item.id,
         "reference": item.reference,
@@ -24,8 +36,9 @@ def serialize_request(item: FabricRequest) -> dict:
         "status": item.status,
         "supplier_id": item.supplier_id,
         "supplier_name": item.supplier.name if item.supplier else None,
-        "development_id": item.development_id,
-        "development_code": item.development.code if item.development else None,
+        "development_id": item.development_id or (primary["id"] if primary else None),
+        "development_code": item.development.code if item.development else (primary["code"] if primary else None),
+        "developments": list(developments.values()),
         "requested_at": item.requested_at,
         "received_at": item.received_at,
         "labels": [{"id": label.id, "name": label.name, "tone": label.tone} for label in item.labels],

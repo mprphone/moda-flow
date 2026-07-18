@@ -9,6 +9,7 @@ def test_code_normalization_accepts_real_trello_variants():
     assert normalize_code("Isa: IF_B001_ 314") == "IF_B001_314"
     assert normalize_code("Juliana IJ:B003_007") == "IJ_B003_007"
     assert extract_codes("JF_B003_158 e BP_B001_027_V2") == {"JF_B003_158", "BP_B001_027_V2"}
+    assert extract_codes("BP_B003_024/025/026") == {"BP_B003_024", "BP_B003_025", "BP_B003_026"}
 
 
 def test_reconcile_links_production_and_fabric_by_explicit_code(db_session):
@@ -50,3 +51,19 @@ def test_reconcile_does_not_guess_when_multiple_codes_match(db_session):
     report = reconcile_links(db_session, [], [], apply=True)
     assert report.ambiguous == 1
     assert db_session.query(Production).one().development_id is None
+
+
+def test_reconcile_shared_fabric_creates_all_links(db_session):
+    client = Client(name="Brownie")
+    db_session.add(client)
+    db_session.flush()
+    db_session.add_all([
+        Development(code="BP_B003_024", title="A", client_id=client.id, owner_name="Isa"),
+        Development(code="BP_B003_025", title="B", client_id=client.id, owner_name="Isa"),
+        FabricRequest(reference="Jersey partilhado"),
+    ])
+    db_session.commit()
+    report = reconcile_links(db_session, [], [TrelloCard(name="Jersey partilhado", desc="BP_B003_024/025")], apply=True)
+    fabric = db_session.query(FabricRequest).one()
+    assert report.fabrics_linked == 2
+    assert {link.development.code for link in fabric.development_links} == {"BP_B003_024", "BP_B003_025"}

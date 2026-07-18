@@ -80,3 +80,24 @@ def test_fabric_labels(client, db_session):
 
     cleared = client.patch(f"/api/fabric-requests/{created.json()['id']}", json={"label_ids": []}, headers=headers)
     assert cleared.json()["labels"] == []
+
+
+def test_one_fabric_can_be_linked_to_multiple_developments(client, db_session):
+    headers = auth(client, db_session)
+    db_session.add(Client(name="Brownie"))
+    db_session.commit()
+    client_id = db_session.query(Client).first().id
+    dev_ids = [client.post("/api/developments", json={
+        "code": code, "title": code, "client_id": client_id, "owner_name": "Isabel",
+    }, headers=headers).json()["id"] for code in ("IF_B003_024", "IF_B003_025")]
+    fabric = client.post("/api/fabric-requests", json={"reference": "Jersey comum"}, headers=headers).json()
+
+    for dev_id in dev_ids:
+        response = client.post(f"/api/fabric-requests/{fabric['id']}/developments", json={
+            "development_id": dev_id, "relation_type": "approved",
+        }, headers=headers)
+        assert response.status_code == 201
+
+    linked = client.get("/api/fabric-requests", headers=headers).json()["items"][0]
+    assert {item["code"] for item in linked["developments"]} == {"IF_B003_024", "IF_B003_025"}
+    assert all(item["relation_type"] == "approved" for item in linked["developments"])

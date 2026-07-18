@@ -69,6 +69,7 @@ export type FabricRequest = {
   supplier_name?: string
   development_id?: number
   development_code?: string
+  developments: { link_id?: number; id: number; code: string; title: string; relation_type: string }[]
   requested_at: string
   received_at?: string
   labels: Label[]
@@ -143,6 +144,7 @@ export type ProductionDetail = Production & {
   comments: CommentItem[]
   development?: { id: number; code: string; title: string; current_stage: string } | null
   fabric_requests: FabricRequest[]
+  used_fabrics: (FabricRequest & { link_id: number; usage_status: string; usage_note?: string })[]
 }
 
 export type LinkedProduction = {

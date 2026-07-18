@@ -8,5 +8,6 @@ from app.models.production import Production, ProductionEvent
 from app.models.user import User
 from app.models.label import Label
 from app.models.fabric_request import FabricRequest
+from app.models.material_link import FabricDevelopmentLink, ProductionFabricLink
 
-__all__ = ["Client", "Supplier", "Development", "DevelopmentAssignee", "DevelopmentTask", "StageEvent", "Comment", "ShoppingPurchase", "Production", "ProductionEvent", "User", "Label", "FabricRequest"]
+__all__ = ["Client", "Supplier", "Development", "DevelopmentAssignee", "DevelopmentTask", "StageEvent", "Comment", "ShoppingPurchase", "Production", "ProductionEvent", "User", "Label", "FabricRequest", "FabricDevelopmentLink", "ProductionFabricLink"]

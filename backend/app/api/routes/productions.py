@@ -1,5 +1,5 @@
 ﻿from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session, joinedload, selectinload
 from app.core.db import get_db
 from app.core.timeutil import utcnow
@@ -8,6 +8,7 @@ from app.models.comment import Comment
 from app.models.development import Development
 from app.models.fabric_request import FabricRequest
 from app.models.production import Production, ProductionEvent
+from app.models.material_link import FabricDevelopmentLink, ProductionFabricLink
 from app.schemas.common import ORMModel
 from app.schemas.development import CommentCreate
 from app.schemas.production import ProductionCreate, ProductionUpdate
@@ -39,7 +40,12 @@ LOAD_OPTIONS = (
     joinedload(Production.client),
     selectinload(Production.events),
     selectinload(Production.comments),
+    selectinload(Production.fabric_links).joinedload(ProductionFabricLink.fabric).joinedload(FabricRequest.supplier),
+    selectinload(Production.fabric_links).joinedload(ProductionFabricLink.fabric).selectinload(FabricRequest.labels),
+    selectinload(Production.fabric_links).joinedload(ProductionFabricLink.fabric).selectinload(FabricRequest.development_links).joinedload(FabricDevelopmentLink.development),
 )
+
+USAGE_STATUSES = {"candidate", "approved", "used", "alternative", "rejected"}
 
 
 class StageNoteUpdate(ORMModel):
@@ -48,6 +54,17 @@ class StageNoteUpdate(ORMModel):
 
 class StageNoteUpsert(ORMModel):
     stage: str
+    note: str | None = None
+
+
+class FabricUsageCreate(ORMModel):
+    fabric_request_id: int
+    usage_status: str = "used"
+    note: str | None = None
+
+
+class FabricUsageUpdate(ORMModel):
+    usage_status: str | None = None
     note: str | None = None
 
 
@@ -85,13 +102,19 @@ def serialize_detail(item: Production, db: Session) -> dict:
     if item.development_id:
         fabric_stmt = (
             select(FabricRequest)
-            .where(FabricRequest.development_id == item.development_id)
-            .options(joinedload(FabricRequest.supplier), joinedload(FabricRequest.development), selectinload(FabricRequest.labels))
+            .outerjoin(FabricDevelopmentLink, FabricDevelopmentLink.fabric_request_id == FabricRequest.id)
+            .where(or_(FabricRequest.development_id == item.development_id, FabricDevelopmentLink.development_id == item.development_id))
+            .options(joinedload(FabricRequest.supplier), joinedload(FabricRequest.development), selectinload(FabricRequest.labels), selectinload(FabricRequest.development_links).joinedload(FabricDevelopmentLink.development))
             .order_by(FabricRequest.requested_at.desc())
         )
         data["fabric_requests"] = [serialize_request(f) for f in db.scalars(fabric_stmt).unique().all()]
     else:
         data["fabric_requests"] = []
+    data["used_fabrics"] = []
+    for link in item.fabric_links:
+        fabric = serialize_request(link.fabric)
+        fabric.update({"link_id": link.id, "usage_status": link.usage_status, "usage_note": link.note})
+        data["used_fabrics"].append(fabric)
     history = []
     for event in sorted(item.events, key=lambda e: e.started_at):
         seconds = ((event.ended_at or utcnow()) - event.started_at).total_seconds()
@@ -218,6 +241,47 @@ def add_comment(production_id: int, payload: CommentCreate, db: Session = Depend
     db.add(Comment(production_id=production_id, author=payload.author, body=payload.body, category=payload.category))
     db.commit()
     return {"ok": True}
+
+
+@router.post("/{production_id}/fabrics", status_code=201)
+def add_fabric_usage(production_id: int, payload: FabricUsageCreate, db: Session = Depends(get_db)):
+    if not db.get(Production, production_id) or not db.get(FabricRequest, payload.fabric_request_id):
+        raise HTTPException(status_code=404, detail="Produção ou malha não encontrada")
+    if payload.usage_status not in USAGE_STATUSES:
+        raise HTTPException(status_code=422, detail="Estado de utilização inválido")
+    link = db.scalar(select(ProductionFabricLink).where(
+        ProductionFabricLink.production_id == production_id,
+        ProductionFabricLink.fabric_request_id == payload.fabric_request_id,
+    ))
+    if link:
+        link.usage_status, link.note = payload.usage_status, payload.note
+    else:
+        db.add(ProductionFabricLink(production_id=production_id, **payload.model_dump()))
+    db.commit()
+    return serialize_detail(load_by_id(db, production_id), db)
+
+
+@router.patch("/{production_id}/fabrics/{link_id}")
+def update_fabric_usage(production_id: int, link_id: int, payload: FabricUsageUpdate, db: Session = Depends(get_db)):
+    link = db.get(ProductionFabricLink, link_id)
+    if not link or link.production_id != production_id:
+        raise HTTPException(status_code=404, detail="Utilização de malha não encontrada")
+    data = payload.model_dump(exclude_unset=True)
+    if "usage_status" in data and data["usage_status"] not in USAGE_STATUSES:
+        raise HTTPException(status_code=422, detail="Estado de utilização inválido")
+    for key, value in data.items():
+        setattr(link, key, value)
+    db.commit()
+    return serialize_detail(load_by_id(db, production_id), db)
+
+
+@router.delete("/{production_id}/fabrics/{link_id}", status_code=204)
+def remove_fabric_usage(production_id: int, link_id: int, db: Session = Depends(get_db)):
+    link = db.get(ProductionFabricLink, link_id)
+    if not link or link.production_id != production_id:
+        raise HTTPException(status_code=404, detail="Utilização de malha não encontrada")
+    db.delete(link)
+    db.commit()
 
 
 @router.delete("/{production_id}", status_code=204)

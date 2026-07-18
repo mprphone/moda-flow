@@ -40,3 +40,5 @@ class FabricRequest(Base):
     supplier = relationship("Supplier")
     development = relationship("Development")
     labels = relationship("Label", secondary=fabric_labels, back_populates="fabrics")
+    development_links = relationship("FabricDevelopmentLink", back_populates="fabric", cascade="all, delete-orphan")
+    production_links = relationship("ProductionFabricLink", back_populates="fabric", cascade="all, delete-orphan")

@@ -7,7 +7,7 @@ import { toast } from '../lib/toast'
 import { StageTrace } from '../components/StageTrace'
 import { FABRIC_STATUS_NAMES } from './FabricsPage'
 import { STAGE_LABELS as STAGE_LABELS_DEV } from '../constants/pipeline'
-import type { Client, Development, Production, ProductionDetail } from '../types'
+import type { Client, Development, FabricRequest, Production, ProductionDetail } from '../types'
 
 type Response = { stages: string[]; items: Production[] }
 
@@ -54,6 +54,9 @@ export function ProductionPage() {
   const [data, setData] = useState<Response>({ stages: [], items: [] })
   const [clientsList, setClientsList] = useState<Client[]>([])
   const [developments, setDevelopments] = useState<Development[]>([])
+  const [fabrics, setFabrics] = useState<FabricRequest[]>([])
+  const [newFabricId, setNewFabricId] = useState('')
+  const [usageStatus, setUsageStatus] = useState('used')
   const [query, setQuery] = useState('')
   const [clientFilter, setClientFilter] = useState('')
   const [view, setView] = useState<'fase' | 'cliente'>('fase')
@@ -67,6 +70,7 @@ export function ProductionPage() {
     void api.get<Response>('/productions').then(setData)
     api.get<Client[]>('/clients').then(setClientsList)
     api.get<Development[]>('/developments').then(setDevelopments)
+    api.get<{ items: FabricRequest[] }>('/fabric-requests').then(result => setFabrics(result.items))
   }, [])
 
   useEffect(() => {
@@ -153,6 +157,18 @@ export function ProductionPage() {
     toast('success', 'Produção eliminada.')
   }
 
+  async function addFabric(id: number) {
+    if (!newFabricId) return
+    const updated = await api.post<ProductionDetail>(`/productions/${id}/fabrics`, { fabric_request_id: Number(newFabricId), usage_status: usageStatus })
+    setDetail(updated); setNewFabricId('')
+    toast('success', 'Malha ligada à produção.')
+  }
+
+  async function removeFabric(id: number, linkId: number) {
+    await api.del(`/productions/${id}/fabrics/${linkId}`)
+    setDetail(await api.get<ProductionDetail>(`/productions/${id}`))
+  }
+
   function handleDragEnd(event: DragEndEvent) {
     if (!event.over || view !== 'fase') return
     const item = event.active.data.current as Production
@@ -213,6 +229,18 @@ export function ProductionPage() {
                 {detail.development.code} — {detail.development.title}
                 <span className="chip tone-sky">{STAGE_LABELS_DEV[detail.development.current_stage] || detail.development.current_stage}</span>
               </div>}
+            </section>
+            <section className="history-section">
+              <div className="section-title"><Scroll size={18}/><strong>Malhas usadas nesta produção</strong></div>
+              <div className="history-list">{(detail?.used_fabrics || []).map(f => <div className="history-row" key={f.link_id}>
+                <strong>{f.reference}{f.color ? ` · ${f.color}` : ''}</strong>
+                <span>{f.usage_status} {f.supplier_name ? `· ${f.supplier_name}` : ''} <button type="button" className="clear-filters" onClick={() => void removeFabric(selected.id, f.link_id)}>Remover</button></span>
+              </div>)}</div>
+              <div className="production-form-grid">
+                <label>Malha<select value={newFabricId} onChange={e => setNewFabricId(e.target.value)}><option value="">Selecionar...</option>{fabrics.filter(f => !(detail?.used_fabrics || []).some(u => u.id === f.id)).map(f => <option key={f.id} value={f.id}>{f.reference}{f.color ? ` · ${f.color}` : ''}</option>)}</select></label>
+                <label>Utilização<select value={usageStatus} onChange={e => setUsageStatus(e.target.value)}><option value="used">Usada</option><option value="approved">Aprovada</option><option value="candidate">Candidata</option><option value="alternative">Alternativa</option><option value="rejected">Rejeitada</option></select></label>
+              </div>
+              <button type="button" className="secondary-button" disabled={!newFabricId} onClick={() => void addFabric(selected.id)}>Adicionar malha</button>
             </section>
             {detail && detail.fabric_requests.length > 0 && <section className="history-section">
               <div className="section-title"><Scroll size={18}/><strong>Malhas deste modelo</strong></div>
