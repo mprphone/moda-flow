@@ -1,18 +1,19 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Camera, CheckCircle2, FileWarning, Pencil, RotateCcw, Trash2, X } from 'lucide-react'
+import { Camera, CheckCircle2, FileText, FileWarning, Paperclip, Pencil, RotateCcw, Trash2, X } from 'lucide-react'
 import { api } from '../api/client'
 import { toast } from '../lib/toast'
 import { UploadInput } from '../components/UploadInput'
+import { QrFileUpload, type UploadedFile } from '../components/QrFileUpload'
 import type { Development, ShoppingPurchase } from '../types'
 
-const EMPTY_FORM = { brand: '', reference: '', amount: '', purchase_date: '', return_deadline: '', invoice_number: '', credit_note_number: '', cover_url: '', development_id: '', notes: '', invoice_sent: false, credit_note_sent: false, refund_received: false, status: 'in_use' }
+const EMPTY_FORM = { brand: '', reference: '', amount: '', purchase_date: '', return_deadline: '', invoice_number: '', credit_note_number: '', cover_url: '', development_id: '', notes: '', invoice_sent: false, credit_note_sent: false, refund_received: false, status: 'in_use', attachments: [] as UploadedFile[] }
 const STATUS_NAMES: Record<string, string> = { in_use: 'Em utilização', to_return: 'Para devolver', returned: 'Devolvida', credit_note_pending: 'Aguarda nota de crédito', refund_pending: 'Aguarda reembolso', closed: 'Fechada' }
 const STATUS_OPTIONS = Object.keys(STATUS_NAMES)
 type Form = typeof EMPTY_FORM
 type PhotoResult = { brand?: string; reference?: string; amount?: number; purchase_date?: string; invoice_number?: string; description?: string; confidence: number }
 
 function toForm(item: ShoppingPurchase): Form {
-  return { brand: item.brand, reference: item.reference || '', amount: String(item.amount), purchase_date: item.purchase_date, return_deadline: item.return_deadline || '', invoice_number: item.invoice_number || '', credit_note_number: item.credit_note_number || '', cover_url: item.cover_url || '', development_id: item.development_id ? String(item.development_id) : '', notes: item.notes || '', invoice_sent: item.invoice_sent, credit_note_sent: item.credit_note_sent, refund_received: item.refund_received, status: item.status }
+  return { brand: item.brand, reference: item.reference || '', amount: String(item.amount), purchase_date: item.purchase_date, return_deadline: item.return_deadline || '', invoice_number: item.invoice_number || '', credit_note_number: item.credit_note_number || '', cover_url: item.cover_url || '', development_id: item.development_id ? String(item.development_id) : '', notes: item.notes || '', invoice_sent: item.invoice_sent, credit_note_sent: item.credit_note_sent, refund_received: item.refund_received, status: item.status, attachments: item.attachments || [] }
 }
 
 export function ShoppingPage() {
@@ -44,11 +45,11 @@ export function ShoppingPage() {
     toast('success', 'Compra eliminada.')
   }
 
-  async function readPhoto() {
-    if (!form.cover_url) return
+  async function readPhoto(fileUrl = form.cover_url, silent = false) {
+    if (!fileUrl) return
     setReading(true)
     try {
-      const result = await api.post<PhotoResult>('/shopping/read-photo', { image_url: form.cover_url })
+      const result = await api.post<PhotoResult>('/shopping/read-photo', { image_url: fileUrl }, silent)
       setForm(current => ({ ...current,
         brand: result.brand || current.brand, reference: result.reference || current.reference,
         amount: result.amount != null ? String(result.amount) : current.amount,
@@ -56,8 +57,21 @@ export function ShoppingPage() {
         invoice_number: result.invoice_number || current.invoice_number,
         notes: result.description || current.notes,
       }))
-      toast('success', `Fotografia lida (${Math.round(result.confidence * 100)}% de confiança). Confirme os campos.`)
-    } finally { setReading(false) }
+      toast('success', `Anexo lido (${Math.round(result.confidence * 100)}% de confiança). Confirme os campos.`)
+    } catch { /* A leitura é opcional; o anexo fica guardado mesmo sem IA configurada. */ }
+    finally { setReading(false) }
+  }
+
+  function addAttachment(file: UploadedFile) {
+    setForm(current => ({ ...current, attachments: [...current.attachments, file] }))
+    if (file.mime_type.startsWith('image/') && !form.cover_url) setForm(current => ({ ...current, cover_url: file.url }))
+    toast('success', 'Anexo recebido na ficha.')
+    void readPhoto(file.url, true)
+  }
+
+  async function uploadAttachment(file?: File) {
+    if (!file) return
+    addAttachment(await api.upload(file))
   }
 
   async function submit(e: React.FormEvent) {
@@ -82,6 +96,10 @@ export function ShoppingPage() {
     {creating && <div className="modal-backdrop" onMouseDown={() => setCreating(false)}><form className="create-modal wide" onSubmit={submit} onMouseDown={e => e.stopPropagation()}>
       <button type="button" className="modal-close" onClick={() => setCreating(false)}><X/></button><h2>{selected ? 'Ficha da compra' : 'Registar compra'}</h2><p>Carregue uma foto da etiqueta, talão ou fatura e use “Ler fotografia” para preencher os dados.</p>
       <UploadInput value={form.cover_url} onChange={url => setForm({ ...form, cover_url: url })} label="Fotografia da peça, etiqueta ou fatura"/>
+      <div className="shopping-attachments"><div className="section-title"><Paperclip size={17}/><strong>Fotografias e documentos</strong></div>
+        <div className="attachment-list">{form.attachments.map((file, index) => <div className="attachment-item" key={`${file.url}-${index}`}>{file.mime_type === 'application/pdf' ? <FileText/> : <img src={file.url} alt=""/>}<a href={file.url} target="_blank" rel="noreferrer">{file.name}</a><button type="button" onClick={() => setForm(current => ({ ...current, attachments: current.attachments.filter((_, i) => i !== index) }))}>×</button></div>)}</div>
+        <div className="attachment-actions"><label className="secondary-button"><Paperclip size={15}/>Anexar neste computador<input hidden type="file" accept="image/*,application/pdf" onChange={e => { void uploadAttachment(e.target.files?.[0]); e.target.value = '' }}/></label><QrFileUpload onReceived={addAttachment}/></div>
+      </div>
       {form.cover_url && <button type="button" className="secondary-button" disabled={reading} onClick={() => void readPhoto()}><Camera size={15}/>{reading ? 'A ler...' : 'Ler fotografia e preencher'}</button>}
       <div className="form-grid"><label>Marca *<input required value={form.brand} onChange={e => setForm({ ...form, brand: e.target.value })}/></label><label>Referência<input value={form.reference} onChange={e => setForm({ ...form, reference: e.target.value })}/></label><label>Valor (€) *<input required type="number" step="0.01" min="0" value={form.amount} onChange={e => setForm({ ...form, amount: e.target.value })}/></label><label>Data da compra *<input required type="date" value={form.purchase_date} onChange={e => setForm({ ...form, purchase_date: e.target.value })}/></label><label>Prazo de devolução<input type="date" value={form.return_deadline} onChange={e => setForm({ ...form, return_deadline: e.target.value })}/></label><label>Estado<select value={form.status} onChange={e => setForm({ ...form, status: e.target.value })}>{STATUS_OPTIONS.map(status => <option key={status} value={status}>{STATUS_NAMES[status]}</option>)}</select></label><label>N.º fatura<input value={form.invoice_number} onChange={e => setForm({ ...form, invoice_number: e.target.value })}/></label><label>N.º nota de crédito<input value={form.credit_note_number} onChange={e => setForm({ ...form, credit_note_number: e.target.value })}/></label><label>Desenvolvimento<select value={form.development_id} onChange={e => setForm({ ...form, development_id: e.target.value })}><option value="">Sem ligação</option>{developments.map(d => <option key={d.id} value={d.id}>{d.code} — {d.title}</option>)}</select></label></div>
       <div className="chips"><label><input type="checkbox" checked={form.invoice_sent} onChange={e => setForm({ ...form, invoice_sent: e.target.checked })}/> Fatura enviada</label><label><input type="checkbox" checked={form.credit_note_sent} onChange={e => setForm({ ...form, credit_note_sent: e.target.checked })}/> Nota crédito enviada</label><label><input type="checkbox" checked={form.refund_received} onChange={e => setForm({ ...form, refund_received: e.target.checked })}/> Reembolso recebido</label></div>

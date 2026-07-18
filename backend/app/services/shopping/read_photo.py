@@ -24,25 +24,32 @@ SCHEMA = {
 }
 
 
-def image_input(image_url: str) -> str:
+def local_file_input(file_url: str) -> tuple[str, str | None]:
     public = settings.public_url.rstrip("/") + "/uploads/"
-    if image_url.startswith(public):
-        name = Path(image_url.removeprefix(public)).name
+    if file_url.startswith(public):
+        name = Path(file_url.removeprefix(public)).name
         path = Path(settings.upload_dir) / name
         if path.is_file():
             encoded = base64.b64encode(path.read_bytes()).decode()
-            return f"data:image/jpeg;base64,{encoded}"
-    return image_url
+            mime = "application/pdf" if path.suffix.lower() == ".pdf" else "image/jpeg"
+            return f"data:{mime};base64,{encoded}", name
+    return file_url, None
 
 
 def read_shopping_photo(image_url: str) -> dict:
     if not settings.openai_api_key:
         raise HTTPException(status_code=503, detail="Leitura automática não configurada. Adicione OPENAI_API_KEY no Railway.")
+    file_input, filename = local_file_input(image_url)
+    attachment = (
+        ({"type": "input_file", "filename": filename, "file_data": file_input} if filename else {"type": "input_file", "file_url": file_input})
+        if image_url.lower().split("?", 1)[0].endswith(".pdf")
+        else {"type": "input_image", "image_url": file_input, "detail": "high"}
+    )
     payload = {
         "model": settings.openai_vision_model,
         "input": [{"role": "user", "content": [
-            {"type": "input_text", "text": "Lê esta fotografia de uma peça, etiqueta, talão ou fatura de moda. Extrai apenas dados visíveis. Não inventes campos ilegíveis. O valor é o total pago pela peça."},
-            {"type": "input_image", "image_url": image_input(image_url), "detail": "high"},
+            {"type": "input_text", "text": "Lê esta fotografia ou PDF de uma peça, etiqueta, talão ou fatura de moda. Extrai apenas dados visíveis. Não inventes campos ilegíveis. O valor é o total pago pela peça."},
+            attachment,
         ]}],
         "text": {"format": {"type": "json_schema", "name": "shopping_photo", "strict": True, "schema": SCHEMA}},
     }

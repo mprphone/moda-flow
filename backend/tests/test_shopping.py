@@ -1,4 +1,6 @@
 from datetime import date
+import io
+from PIL import Image
 
 from app.core.security import hash_password
 from app.models.user import User
@@ -40,3 +42,22 @@ def test_shopping_photo_reader_reports_missing_configuration(client, db_session)
     response = client.post("/api/shopping/read-photo", json={"image_url": "https://example.com/receipt.jpg"}, headers=headers)
     assert response.status_code == 503
     assert "OPENAI_API_KEY" in response.json()["detail"]
+
+
+def test_qr_upload_accepts_photo_and_returns_it_to_authenticated_session(client, db_session):
+    headers = auth(client, db_session)
+    created = client.post("/api/qr-uploads", json={}, headers=headers)
+    assert created.status_code == 201
+    token = created.json()["token"]
+
+    buffer = io.BytesIO()
+    Image.new("RGB", (80, 80), "pink").save(buffer, format="JPEG")
+    sent = client.post(
+        f"/api/public/qr-uploads/{token}",
+        files={"file": ("peca.jpg", buffer.getvalue(), "image/jpeg")},
+    )
+    assert sent.status_code == 201, sent.text
+    status = client.get(f"/api/qr-uploads/{token}", headers=headers).json()
+    assert status["status"] == "received"
+    assert status["mime_type"] == "image/jpeg"
+    assert status["file_url"].endswith(".jpg")

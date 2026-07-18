@@ -1,3 +1,4 @@
+import json
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app.core.db import get_db
@@ -26,7 +27,9 @@ def get_shopping(db: Session = Depends(get_db)):
 
 @router.post("", status_code=201)
 def post_shopping(payload: ShoppingCreate, db: Session = Depends(get_db)):
-    item = ShoppingPurchase(**payload.model_dump())
+    data = payload.model_dump()
+    attachments = data.pop("attachments", None)
+    item = ShoppingPurchase(**data, attachments_json=json.dumps(attachments or []))
     db.add(item)
     db.commit()
     db.refresh(item)
@@ -44,6 +47,8 @@ def patch_shopping(purchase_id: int, payload: ShoppingUpdate, db: Session = Depe
     if not item:
         raise HTTPException(status_code=404, detail="Compra não encontrada")
     data = payload.model_dump(exclude_unset=True)
+    if "attachments" in data:
+        item.attachments_json = json.dumps(data.pop("attachments") or [])
     if data.get("status") and data["status"] not in {status.value for status in ShoppingStatus}:
         raise HTTPException(status_code=422, detail="Estado de Shopping inválido")
     for key, value in data.items():

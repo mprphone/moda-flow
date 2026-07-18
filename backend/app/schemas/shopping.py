@@ -14,6 +14,7 @@ class ShoppingCreate(ORMModel):
     notes: str | None = None
     invoice_sent: bool = False
     credit_note_sent: bool = False
+    attachments: list[dict] | None = None
 
 
 class ShoppingUpdate(ORMModel):
@@ -31,6 +32,7 @@ class ShoppingUpdate(ORMModel):
     notes: str | None = None
     invoice_sent: bool | None = None
     credit_note_sent: bool | None = None
+    attachments: list[dict] | None = None
 
 
 class ShoppingOut(ShoppingCreate):

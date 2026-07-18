@@ -125,6 +125,7 @@ export type ShoppingPurchase = {
   credit_note_sent: boolean
   notes?: string
   development_id?: number
+  attachments: { url: string; mime_type: string; name: string }[]
   cover_url?: string
   days_to_return?: number
 }

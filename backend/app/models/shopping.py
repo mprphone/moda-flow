@@ -23,6 +23,7 @@ class ShoppingPurchase(Base):
     invoice_sent: Mapped[bool] = mapped_column(Boolean, default=False)
     credit_note_sent: Mapped[bool] = mapped_column(Boolean, default=False)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    attachments_json: Mapped[str | None] = mapped_column(Text, nullable=True)
     cover_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
     development_id: Mapped[int | None] = mapped_column(ForeignKey("developments.id"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)

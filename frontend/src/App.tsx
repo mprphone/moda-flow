@@ -13,6 +13,7 @@ import { FabricsPage } from './pages/FabricsPage'
 import { LoginPage } from './pages/LoginPage'
 import { ReconciliationPage } from './pages/ReconciliationPage'
 import { AuthProvider, useAuth } from './auth'
+import { MobileQrUploadPage } from './pages/MobileQrUploadPage'
 
 function Shell() {
   const { user, loading } = useAuth()
@@ -44,5 +45,7 @@ function Shell() {
 }
 
 export default function App() {
+  const qrToken = new URLSearchParams(window.location.search).get('qr_upload')
+  if (qrToken) return <MobileQrUploadPage token={qrToken}/>
   return <AuthProvider><Shell/><Toasts/></AuthProvider>
 }

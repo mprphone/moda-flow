@@ -45,7 +45,7 @@ async function request<T>(path: string, options?: RequestInit, silent = false): 
   return response.json()
 }
 
-async function upload(file: File): Promise<{ url: string }> {
+async function upload(file: File): Promise<{ url: string; mime_type: string; name: string }> {
   const token = getToken()
   const body = new FormData()
   body.append('file', file)

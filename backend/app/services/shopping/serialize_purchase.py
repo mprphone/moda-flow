@@ -1,3 +1,4 @@
+import json
 from app.core.timeutil import today
 
 
@@ -17,6 +18,7 @@ def serialize_purchase(item):
         "invoice_sent": item.invoice_sent,
         "credit_note_sent": item.credit_note_sent,
         "notes": item.notes,
+        "attachments": json.loads(item.attachments_json or "[]"),
         "cover_url": item.cover_url,
         "development_id": item.development_id,
         "days_to_return": days,

@@ -1,10 +1,11 @@
 from fastapi import APIRouter, Depends
-from app.api.routes import auth, health, developments, clients, suppliers, dashboard, shopping, productions, labels, stats, users, fabric_requests, uploads
+from app.api.routes import auth, health, developments, clients, suppliers, dashboard, shopping, productions, labels, stats, users, fabric_requests, uploads, qr_uploads
 from app.core.security import get_current_user
 
 api_router = APIRouter()
 api_router.include_router(health.router, tags=["health"])
 api_router.include_router(auth.router, prefix="/auth", tags=["auth"])
+api_router.include_router(qr_uploads.public_router, prefix="/public/qr-uploads", tags=["public-uploads"])
 
 protected = APIRouter(dependencies=[Depends(get_current_user)])
 protected.include_router(dashboard.router, prefix="/dashboard", tags=["dashboard"])
@@ -18,4 +19,5 @@ protected.include_router(stats.router, prefix="/stats", tags=["stats"])
 protected.include_router(users.router, prefix="/users", tags=["users"])
 protected.include_router(fabric_requests.router, prefix="/fabric-requests", tags=["fabric-requests"])
 protected.include_router(uploads.router, prefix="/uploads", tags=["uploads"])
+protected.include_router(qr_uploads.protected_router, prefix="/qr-uploads", tags=["qr-uploads"])
 api_router.include_router(protected)
