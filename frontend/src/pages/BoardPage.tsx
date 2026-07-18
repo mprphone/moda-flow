@@ -201,6 +201,7 @@ export function BoardPage({ board, refreshKey }: { board: Board; refreshKey: num
       onStatus={(status, reason) => void updateItem(selected.id, { status, waiting_reason: reason || null })}
       onReject={(reason) => void rejectItem(selected.id, reason)}
       onLabels={(labelIds) => void updateItem(selected.id, { label_ids: labelIds })}
+      onOwner={(name) => void updateItem(selected.id, { owner_name: name })}
       onDescription={(text) => saveDescription(selected.id, text)}
       onComment={(body) => addComment(selected.id, body)}
       onCreateProduction={(quantity) => void createProduction(selected.id, quantity)}

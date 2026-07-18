@@ -34,27 +34,45 @@ type Props = {
   onStatus: (status: string, reason?: string) => void
   onReject: (reason?: string) => void
   onLabels: (labelIds: number[]) => void
+  onOwner: (name: string) => void
   onDescription: (text: string) => Promise<void>
   onComment: (body: string) => Promise<void>
   onCreateProduction: (quantity: number) => void
   onDelete: () => void
 }
 
-export function DevelopmentModal({ item, labels, onClose, onMove, onStatus, onReject, onLabels, onDescription, onComment, onCreateProduction, onDelete }: Props) {
+export function DevelopmentModal({ item, labels, onClose, onMove, onStatus, onReject, onLabels, onOwner, onDescription, onComment, onCreateProduction, onDelete }: Props) {
   const [detail, setDetail] = useState<DevelopmentDetail | null>(null)
   const [refresh, setRefresh] = useState(0)
   const [notes, setNotes] = useState(item.description || '')
   const [comment, setComment] = useState('')
   const [saving, setSaving] = useState(false)
   const [suppliers, setSuppliers] = useState<Supplier[]>([])
+  const [designers, setDesigners] = useState<string[]>([])
+  const [editingOwner, setEditingOwner] = useState(false)
+  const [ownerText, setOwnerText] = useState(item.owner_name)
   const [fabricForm, setFabricForm] = useState({ reference: '', supplier_id: '', quantity_meters: '', color: '' })
   const [addingFabric, setAddingFabric] = useState(false)
 
   useEffect(() => {
     api.get<DevelopmentDetail>(`/developments/${item.id}`).then(setDetail).catch(() => setDetail(null))
   }, [item.id, item.updated_at, refresh])
-  useEffect(() => { setNotes(item.description || '') }, [item.id, item.description])
-  useEffect(() => { api.get<Supplier[]>('/suppliers').then(setSuppliers).catch(() => {}) }, [])
+  useEffect(() => { setNotes(item.description || ''); setOwnerText(item.owner_name) }, [item.id, item.description, item.owner_name])
+  useEffect(() => {
+    api.get<Supplier[]>('/suppliers').then(setSuppliers).catch(() => {})
+    api.get<{ name: string }[]>('/users').then(u => setDesigners(u.map(x => x.name))).catch(() => {})
+  }, [])
+
+  function addDesigner(name: string) {
+    const parts = ownerText.split(/[+,]/).map(s => s.trim()).filter(Boolean)
+    if (parts.includes(name)) return
+    setOwnerText([...parts, name].join(' + '))
+  }
+  function saveOwner() {
+    const value = ownerText.trim()
+    if (value && value !== item.owner_name) onOwner(value)
+    setEditingOwner(false)
+  }
 
   async function submitFabric() {
     if (!fabricForm.reference.trim()) return
@@ -128,11 +146,21 @@ export function DevelopmentModal({ item, labels, onClose, onMove, onStatus, onRe
           {STATUS_BADGE[item.status] && <span className={`status-badge tone-${STATUS_BADGE[item.status].tone}`}>{STATUS_BADGE[item.status].label}</span>}
         </div>
         <div className="quick-meta">
-          <span><UserRound size={16}/>{item.owner_name}</span>
+          {editingOwner
+            ? <span className="owner-edit">
+                <UserRound size={16}/>
+                <input autoFocus value={ownerText} onChange={e => setOwnerText(e.target.value)} onKeyDown={e => e.key === 'Enter' && saveOwner()} placeholder="Designer(s) responsável(is)"/>
+                <button onClick={saveOwner}>✓</button>
+              </span>
+            : <span className="owner-view" onClick={() => setEditingOwner(true)}><UserRound size={16}/>{item.owner_name || 'Definir responsável'} <span className="owner-edit-hint">✎</span></span>}
           <span><Clock3 size={16}/>{item.days_in_stage} dias nesta fase</span>
           <span><CalendarDays size={16}/>{item.due_date || 'Sem prazo'}</span>
           {detail?.estimated_completion && <span className={detail.eta_at_risk ? 'eta-risk' : ''}><TrendingUp size={16}/>Previsão: {detail.estimated_completion}{detail.eta_at_risk ? ' ⚠ depois do prazo' : ''}</span>}
         </div>
+        {editingOwner && designers.length > 0 && <div className="designer-suggestions">
+          Designers: {designers.map(name => <button key={name} type="button" className="designer-chip" onClick={() => addDesigner(name)}>+ {name}</button>)}
+          <span className="designer-hint">(clique para juntar em parceria)</span>
+        </div>}
         <LabelPicker all={labels} applied={item.labels} onChange={onLabels}/>
         <div className="compact-pipeline">{traceStages.map(([id,label]) => {
           const i = PIPELINE.findIndex(([pid]) => pid === id)
@@ -140,6 +168,14 @@ export function DevelopmentModal({ item, labels, onClose, onMove, onStatus, onRe
         })}</div>
         <section className="smart-panel"><div><Sparkles size={20}/><strong>Assistente do desenvolvimento</strong></div>{item.suggestions.length ? item.suggestions.map(text => <p key={text}>{text}</p>) : <p>O desenvolvimento está dentro do ritmo normal.</p>}</section>
         <section className="current-stage"><div className="section-title"><Layers3 size={18}/><strong>Fase atual</strong></div><div className="stage-focus"><div><small>ONDE ESTÁ</small><strong>{STAGE_LABELS[item.current_stage]}</strong></div><div><small>PRÓXIMA AÇÃO</small><strong>{item.next_action}</strong></div><div><small>MOTIVO DE ESPERA</small><strong>{item.waiting_reason || 'Sem bloqueios registados'}</strong></div></div></section>
+        {item.current_stage === 'proposta_cliente'
+          ? <div className="advance-row">
+              <button className="advance-btn ok" onClick={() => onMove('ficha_tecnica')}>✔ Cliente aprovou — iniciar desenvolvimento de amostras</button>
+              <button className="advance-btn no" onClick={() => onReject(window.prompt('Motivo da reprovação (opcional):') || undefined)}>✖ Cliente reprovou</button>
+            </div>
+          : item.current_stage === 'aprovado'
+            ? <button className="advance-btn" onClick={createProduction}>Criar produção industrial <Factory size={17}/></button>
+            : <button className="advance-btn" onClick={() => onMove(next[0])}>Concluir “{STAGE_LABELS[item.current_stage]}” e avançar para “{next[1]}” <ArrowRight size={17}/></button>}
         <section className="history-section notes-section">
           <div className="section-title"><StickyNote size={18}/><strong>Notas</strong></div>
           <textarea
@@ -223,18 +259,13 @@ export function DevelopmentModal({ item, labels, onClose, onMove, onStatus, onRe
       </div>
       <aside className="modal-side">
         <h3>Ações rápidas</h3>
-        {item.current_stage === 'novo' && <button className="action primary" onClick={() => onMove('proposta_cliente')}>Enviar proposta ao cliente <ArrowRight size={16}/></button>}
-        {item.current_stage === 'proposta_cliente' && <>
-          <button className="action primary" onClick={() => onMove('ficha_tecnica')}>✔ Cliente aprovou — iniciar amostra</button>
-          <button className="action danger" onClick={() => onReject(window.prompt('Motivo da reprovação (opcional):') || undefined)}>✖ Cliente reprovou</button>
-        </>}
-        {item.current_stage === 'aprovado' && <button className="action primary" onClick={createProduction}>Criar produção <Factory size={16}/></button>}
-        {item.current_stage !== 'novo' && item.current_stage !== 'proposta_cliente' && item.current_stage !== 'aprovado' && <button className="action primary" onClick={() => onMove(next[0])}>Concluir e avançar <ArrowRight size={16}/></button>}
         <button className="action" onClick={() => waitFor('waiting_supplier', 'espera do fornecedor')}>Aguardar fornecedor</button>
         <button className="action" onClick={() => waitFor('waiting_client', 'espera do cliente')}>Aguardar cliente</button>
         <button className="action" onClick={() => onStatus('blocked', window.prompt('Qual é o bloqueio?') || undefined)}>Registar bloqueio</button>
+        {(item.status === 'waiting_supplier' || item.status === 'waiting_client' || item.status === 'blocked') &&
+          <button className="action" onClick={() => onStatus('active')}>Retomar (limpar espera)</button>}
         <button className="action danger" onClick={confirmDelete}><Trash2 size={15}/> Eliminar desenvolvimento</button>
-        <div className="mini-note">Cada ação atualiza automaticamente datas, tempos e histórico.</div>
+        <div className="mini-note">O botão grande avança de fase. Estas ações registam esperas e bloqueios.</div>
       </aside>
     </div>
   </div></div>
