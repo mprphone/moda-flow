@@ -87,6 +87,16 @@ def serialize_detail(item: Production) -> dict:
             "responsible_name": event.responsible_name,
             "supplier_name": None,
         })
+    # Produções antigas (importadas antes do histórico) não têm eventos: mostra a fase
+    # atual como em curso a partir da criação, sem persistir nada.
+    if not history and item.status != "cancelada":
+        seconds = (utcnow() - item.created_at).total_seconds()
+        history.append({
+            "id": 0, "stage": item.status, "status": "active",
+            "started_at": item.created_at, "ended_at": None,
+            "days": round(seconds / 86400, 1), "note": None,
+            "responsible_name": item.responsible_name, "supplier_name": None,
+        })
     data["stage_history"] = history
     data["comments"] = [
         {"id": c.id, "author": c.author, "body": c.body, "category": c.category, "created_at": c.created_at}
