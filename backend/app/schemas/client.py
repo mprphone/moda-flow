@@ -3,6 +3,7 @@ from app.schemas.common import ORMModel
 
 class ClientCreate(ORMModel):
     name: str
+    code: str | None = None
     group_name: str | None = None
     email: str | None = None
     phone: str | None = None
@@ -19,6 +20,7 @@ class ClientOut(ClientCreate):
 
 class ClientUpdate(ORMModel):
     name: str | None = None
+    code: str | None = None
     group_name: str | None = None
     email: str | None = None
     phone: str | None = None

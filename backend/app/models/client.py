@@ -10,6 +10,7 @@ class Client(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     name: Mapped[str] = mapped_column(String(120), unique=True, index=True)
+    code: Mapped[str | None] = mapped_column(String(10), nullable=True, index=True)  # código de referência (B001...)
     group_name: Mapped[str | None] = mapped_column(String(120), nullable=True)
     email: Mapped[str | None] = mapped_column(String(160), nullable=True)
     phone: Mapped[str | None] = mapped_column(String(50), nullable=True)

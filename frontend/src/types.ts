@@ -1,6 +1,6 @@
 export type Label = { id: number; name: string; tone: string }
 
-export type User = { id: number; name: string; email?: string; role: string }
+export type User = { id: number; name: string; email?: string; role: string; initials?: string }
 export type TeamUser = User & { is_active: boolean; created_at: string; phone?: string }
 export type DevelopmentAssignee = { id: number; user_id: number; name: string; role: string }
 export type DevelopmentTask = {
@@ -101,7 +101,7 @@ export type DevelopmentDetail = Development & {
 }
 
 export type Client = {
-  id: number; name: string; group_name?: string; notes?: string
+  id: number; name: string; code?: string; group_name?: string; notes?: string
   email?: string; phone?: string; contact_person?: string; segments?: string; preferred_channel?: string; meetings?: string
 }
 export type Supplier = {

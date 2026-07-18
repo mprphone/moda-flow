@@ -4,7 +4,7 @@ import { api } from '../api/client'
 import { toast } from '../lib/toast'
 import type { Client, Score, Supplier } from '../types'
 
-const EMPTY_CLIENT = { name: '', group_name: '', email: '', phone: '', contact_person: '', segments: '', preferred_channel: '', meetings: '', notes: '' }
+const EMPTY_CLIENT = { name: '', code: '', group_name: '', email: '', phone: '', contact_person: '', segments: '', preferred_channel: '', meetings: '', notes: '' }
 const EMPTY_SUPPLIER = { name: '', category: 'geral', email: '', phone: '', contact_person: '', preferred_channel: '', meetings: '', notes: '' }
 
 export function PartnersPage() {
@@ -54,7 +54,7 @@ export function PartnersPage() {
       const detail = clientDetails.find(value => value.id === item.client_id)
       if (!detail) return
       setClientForm({
-        name: detail.name, group_name: detail.group_name || '', email: detail.email || '', phone: detail.phone || '',
+        name: detail.name, code: detail.code || '', group_name: detail.group_name || '', email: detail.email || '', phone: detail.phone || '',
         contact_person: detail.contact_person || '', segments: detail.segments || '',
         preferred_channel: detail.preferred_channel || '', meetings: detail.meetings || '', notes: detail.notes || '',
       })
@@ -127,6 +127,7 @@ export function PartnersPage() {
         <p>Ficha do cliente. Só o nome é obrigatório.</p>
         <div className="form-grid">
           <label>Nome *<input required value={clientForm.name} onChange={e => setClientForm({ ...clientForm, name: e.target.value })}/></label>
+          <label>Código de referência<input value={clientForm.code} onChange={e => setClientForm({ ...clientForm, code: e.target.value.toUpperCase() })} placeholder="ex.: B001"/></label>
           <label>Grupo<input value={clientForm.group_name} onChange={e => setClientForm({ ...clientForm, group_name: e.target.value })} placeholder="ex.: Inditex"/></label>
           <label>Pessoa a contactar<input value={clientForm.contact_person} onChange={e => setClientForm({ ...clientForm, contact_person: e.target.value })}/></label>
           <label>Segmentos<input value={clientForm.segments} onChange={e => setClientForm({ ...clientForm, segments: e.target.value })} placeholder="Mulher, Criança, Homem..."/></label>

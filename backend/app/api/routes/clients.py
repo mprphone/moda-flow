@@ -13,7 +13,7 @@ router = APIRouter()
 
 def serialize_client(item) -> dict:
     return {
-        "id": item.id, "name": item.name, "group_name": item.group_name,
+        "id": item.id, "name": item.name, "code": item.code, "group_name": item.group_name,
         "email": item.email, "phone": item.phone, "contact_person": item.contact_person,
         "segments": item.segments, "preferred_channel": item.preferred_channel,
         "meetings": item.meetings, "notes": item.notes,

@@ -1,11 +1,14 @@
 import json
+import re
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 from app.core.db import get_db
 from app.core.enums import PIPELINE
 from app.core.timeutil import utcnow
+from app.models.client import Client
 from app.models.comment import Comment
+from app.models.development import Development
 from app.models.fabric_request import FabricRequest
 from app.models.label import Label
 from app.models.development import DevelopmentAssignee, DevelopmentTask
@@ -31,6 +34,34 @@ ASSIGNEE_ROLES = {"principal", "parceria", "fitting", "qualidade", "grafico"}
 @router.get("")
 def get_developments(db: Session = Depends(get_db)):
     return [serialize_development(item) for item in list_all(db)]
+
+
+@router.get("/next-reference")
+def next_reference(client_id: int, user_id: int | None = None, db: Session = Depends(get_db)):
+    """Gera a próxima referência: {iniciais_designer}_{codigo_cliente}_{sequencial}.
+
+    O sequencial é o maior já usado para o código do cliente, mais um.
+    """
+    client = db.get(Client, client_id)
+    if not client:
+        raise HTTPException(status_code=404, detail="Cliente não encontrado.")
+    code = (client.code or "").strip().upper()
+    if not code:
+        raise HTTPException(status_code=422, detail="Este cliente ainda não tem código de referência (ex.: B001). Defina-o na ficha do cliente.")
+
+    initials = ""
+    if user_id:
+        user = db.get(User, user_id)
+        if user:
+            initials = (user.initials or "").strip().upper()
+
+    pattern = re.compile(rf"_{re.escape(code)}_(\d+)")
+    rows = db.scalars(select(Development.code).where(Development.code.ilike(f"%{code}%"))).all()
+    sequences = [int(m.group(1)) for row in rows if row and (m := pattern.search(row.upper()))]
+    nxt = (max(sequences) + 1) if sequences else 1
+    seq_str = f"{nxt:03d}"
+    reference = f"{initials}_{code}_{seq_str}" if initials else f"{code}_{seq_str}"
+    return {"reference": reference, "sequence": nxt, "client_code": code, "initials": initials}
 
 
 @router.post("", status_code=201)

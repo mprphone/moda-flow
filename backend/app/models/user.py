@@ -15,4 +15,5 @@ class User(Base):
     role: Mapped[str] = mapped_column(String(30), default="admin")
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     phone: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    initials: Mapped[str | None] = mapped_column(String(5), nullable=True)  # prefixo de referência (IF, JF...)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)

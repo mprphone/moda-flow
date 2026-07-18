@@ -5,7 +5,7 @@ import { useAuth } from '../auth'
 import { toast } from '../lib/toast'
 import type { TeamUser } from '../types'
 
-const EMPTY_FORM = { name: '', email: '', password: '', phone: '', role: 'designer' }
+const EMPTY_FORM = { name: '', email: '', password: '', phone: '', initials: '', role: 'designer' }
 
 export function TeamPage() {
   const { user } = useAuth()
@@ -24,7 +24,7 @@ export function TeamPage() {
   }
   function editUser(item: TeamUser) {
     setEditingId(item.id)
-    setForm({ name: item.name, email: item.email || '', password: '', phone: item.phone || '', role: item.role })
+    setForm({ name: item.name, email: item.email || '', password: '', phone: item.phone || '', initials: item.initials || '', role: item.role })
     setCreating(true)
   }
   function closeModal() { setCreating(false); setEditingId(null); setForm(EMPTY_FORM) }
@@ -35,6 +35,7 @@ export function TeamPage() {
       name: form.name,
       email: form.email || null,
       phone: form.phone || null,
+      initials: form.initials || null,
       role: form.role,
       ...(form.password ? { password: form.password } : {}),
     }
@@ -119,6 +120,7 @@ export function TeamPage() {
         <label>Email<input type="email" placeholder="para dar acesso" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })}/></label>
         <label>{editingId ? 'Nova palavra-passe (deixe vazio para manter)' : 'Palavra-passe inicial'}<input type="text" minLength={8} placeholder="mínimo 8 carateres" value={form.password} onChange={e => setForm({ ...form, password: e.target.value })}/></label>
         <label>Telefone<input type="tel" placeholder="ex.: 912 345 678" value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })}/></label>
+        <label>Iniciais de referência<input maxLength={5} placeholder="ex.: IF" value={form.initials} onChange={e => setForm({ ...form, initials: e.target.value.toUpperCase() })}/></label>
         <label>Papel<select value={form.role} onChange={e => setForm({ ...form, role: e.target.value })}>
           <option value="designer">Designer</option>
           <option value="admin">Administradora</option>
