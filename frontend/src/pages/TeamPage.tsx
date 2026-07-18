@@ -38,6 +38,16 @@ export function TeamPage() {
     toast('success', 'Palavra-passe alterada. Comunique-a à colega.')
   }
 
+  async function setupAccess(item: TeamUser) {
+    const email = window.prompt(`Email de acesso para ${item.name}:`, item.email || '')
+    if (!email) return
+    const password = window.prompt('Palavra-passe inicial (mínimo 8 carateres):')
+    if (!password) return
+    await api.patch(`/users/${item.id}`, { email, password, is_active: true })
+    toast('success', `Acesso de ${item.name} ativado.`)
+    void load()
+  }
+
   async function changeMyPassword() {
     const current = window.prompt('A sua palavra-passe atual:')
     if (!current) return
@@ -62,15 +72,16 @@ export function TeamPage() {
           <div className="score-head">
             <div>
               <h3>{item.name}{item.id === user?.id ? ' (eu)' : ''}</h3>
-              <p>{item.email}</p>
+              <p>{item.email || 'Email ainda por preencher'}</p>
             </div>
             <span className={`chip ${item.role === 'admin' ? 'tone-lilac' : 'tone-sky'}`}>{item.role === 'admin' ? 'Administradora' : 'Designer'}</span>
           </div>
           <div className="team-meta">
-            {!item.is_active && <span className="chip tone-pink">Conta desativada</span>}
+            {!item.email && <span className="chip tone-yellow">Ficha pendente · sem acesso</span>}
+            {item.email && !item.is_active && <span className="chip tone-pink">Conta desativada</span>}
             {isAdmin && <div className="team-actions">
-              <button onClick={() => void resetPassword(item)}>Repor palavra-passe</button>
-              {item.id !== user?.id && <button onClick={() => void toggleActive(item)}>{item.is_active ? 'Desativar' : 'Reativar'}</button>}
+              {!item.email ? <button onClick={() => void setupAccess(item)}>Completar email e acesso</button> : <button onClick={() => void resetPassword(item)}>Repor palavra-passe</button>}
+              {item.email && item.id !== user?.id && <button onClick={() => void toggleActive(item)}>{item.is_active ? 'Desativar' : 'Reativar'}</button>}
             </div>}
           </div>
         </div>
@@ -82,13 +93,13 @@ export function TeamPage() {
         <h2>Nova conta da equipa</h2>
         <p>A colega entra com este email e palavra-passe, e pode depois alterá-la.</p>
         <label>Nome<input required value={form.name} onChange={e => setForm({ ...form, name: e.target.value })}/></label>
-        <label>Email<input required type="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })}/></label>
-        <label>Palavra-passe inicial<input required minLength={8} value={form.password} onChange={e => setForm({ ...form, password: e.target.value })}/></label>
+        <label>Email (opcional)<input type="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })}/></label>
+        <label>Palavra-passe inicial (opcional)<input minLength={8} value={form.password} onChange={e => setForm({ ...form, password: e.target.value })}/></label>
         <label>Papel<select value={form.role} onChange={e => setForm({ ...form, role: e.target.value })}>
           <option value="designer">Designer</option>
           <option value="admin">Administradora</option>
         </select></label>
-        <button className="primary-button" type="submit">Criar conta</button>
+        <button className="primary-button" type="submit">{form.email ? 'Criar conta' : 'Criar ficha pendente'}</button>
       </form>
     </div>}
   </div>

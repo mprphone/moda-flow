@@ -10,8 +10,8 @@ class User(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     name: Mapped[str] = mapped_column(String(120))
-    email: Mapped[str] = mapped_column(String(160), unique=True, index=True)
-    password_hash: Mapped[str] = mapped_column(String(200))
+    email: Mapped[str | None] = mapped_column(String(160), unique=True, index=True, nullable=True)
+    password_hash: Mapped[str | None] = mapped_column(String(200), nullable=True)
     role: Mapped[str] = mapped_column(String(30), default="admin")
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)

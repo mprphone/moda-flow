@@ -42,6 +42,22 @@ def test_designer_cannot_create_users(client, db_session):
     assert denied.status_code == 403
 
 
+def test_admin_creates_pending_profile_then_enables_access(client, db_session):
+    admin = make_admin(db_session)
+    headers = login(client, admin.email, "AdminPass123!")
+    pending = client.post("/api/users", json={"name": "Beatriz Pinto", "role": "designer"}, headers=headers)
+    assert pending.status_code == 201
+    assert pending.json()["email"] is None
+    assert pending.json()["is_active"] is False
+
+    enabled = client.patch(f"/api/users/{pending.json()['id']}", json={
+        "email": "beatriz@example.com", "password": "BeatrizPass123!", "is_active": True,
+    }, headers=headers)
+    assert enabled.status_code == 200
+    assert enabled.json()["is_active"] is True
+    assert login(client, "beatriz@example.com", "BeatrizPass123!")["Authorization"]
+
+
 def test_duplicate_email_rejected(client, db_session):
     make_admin(db_session)
     admin = login(client, "admin@example.com", "AdminPass123!")

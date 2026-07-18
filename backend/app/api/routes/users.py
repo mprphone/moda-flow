@@ -13,8 +13,8 @@ ROLES = {"admin", "designer"}
 
 class UserCreate(ORMModel):
     name: str
-    email: str
-    password: str
+    email: str | None = None
+    password: str | None = None
     role: str = "designer"
 
 
@@ -23,6 +23,7 @@ class UserUpdate(ORMModel):
     role: str | None = None
     is_active: bool | None = None
     password: str | None = None
+    email: str | None = None
 
 
 def serialize_user(user: User) -> dict:
@@ -43,14 +44,16 @@ def get_users(db: Session = Depends(get_db)):
 
 @router.post("", status_code=201, dependencies=[Depends(require_admin)])
 def post_user(payload: UserCreate, db: Session = Depends(get_db)):
-    email = payload.email.strip().lower()
+    email = payload.email.strip().lower() if payload.email else None
     if payload.role not in ROLES:
         raise HTTPException(status_code=422, detail="Papel inválido (admin ou designer).")
-    if len(payload.password) < 8:
+    if payload.password and len(payload.password) < 8:
         raise HTTPException(status_code=422, detail="A palavra-passe deve ter pelo menos 8 carateres.")
-    if db.scalar(select(User).where(func.lower(User.email) == email)):
+    if email and db.scalar(select(User).where(func.lower(User.email) == email)):
         raise HTTPException(status_code=409, detail="Já existe um utilizador com esse email.")
-    user = User(name=payload.name.strip(), email=email, password_hash=hash_password(payload.password), role=payload.role)
+    if bool(email) != bool(payload.password):
+        raise HTTPException(status_code=422, detail="Para dar acesso, indique email e palavra-passe.")
+    user = User(name=payload.name.strip(), email=email, password_hash=hash_password(payload.password) if payload.password else None, role=payload.role, is_active=bool(email and payload.password))
     db.add(user)
     db.commit()
     db.refresh(user)
@@ -68,10 +71,18 @@ def patch_user(user_id: int, payload: UserUpdate, db: Session = Depends(get_db),
     if data.get("is_active") is False and user.id == admin.id:
         raise HTTPException(status_code=422, detail="Não pode desativar a sua própria conta.")
     password = data.pop("password", None)
+    email = data.pop("email", None)
+    if email is not None:
+        email = email.strip().lower() or None
+        if email and db.scalar(select(User).where(func.lower(User.email) == email, User.id != user.id)):
+            raise HTTPException(status_code=409, detail="Já existe um utilizador com esse email.")
+        user.email = email
     if password:
         if len(password) < 8:
             raise HTTPException(status_code=422, detail="A palavra-passe deve ter pelo menos 8 carateres.")
         user.password_hash = hash_password(password)
+    if data.get("is_active") is True and (not user.email or not (password or user.password_hash)):
+        raise HTTPException(status_code=422, detail="Complete o email e a palavra-passe antes de ativar o acesso.")
     for key, value in data.items():
         setattr(user, key, value)
     db.commit()

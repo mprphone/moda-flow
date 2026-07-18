@@ -1,6 +1,6 @@
 export type Label = { id: number; name: string; tone: string }
 
-export type User = { id: number; name: string; email: string; role: string }
+export type User = { id: number; name: string; email?: string; role: string }
 export type TeamUser = User & { is_active: boolean; created_at: string }
 export type DevelopmentAssignee = { id: number; user_id: number; name: string; role: string }
 export type DevelopmentTask = {
