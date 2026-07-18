@@ -1,8 +1,9 @@
 import { Clock3, MessageCircle, Sparkles } from 'lucide-react'
 import { useDraggable } from '@dnd-kit/core'
 import type { Development } from '../types'
+import { STAGE_LABELS } from '../constants/pipeline'
 
-export function DevelopmentCard({ item, onOpen }: { item: Development; onOpen: () => void }) {
+export function DevelopmentCard({ item, onOpen, showStage }: { item: Development; onOpen: () => void; showStage?: boolean }) {
   const { attributes, listeners, setNodeRef, transform } = useDraggable({ id: item.id, data: item })
   const style = transform ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` } : undefined
   return <article ref={setNodeRef} style={style} className={`development-card risk-${item.risk}`} {...listeners} {...attributes} onClick={onOpen}>
@@ -11,7 +12,9 @@ export function DevelopmentCard({ item, onOpen }: { item: Development; onOpen: (
       <div className="card-title">{item.code}</div>
       {item.title !== item.code && <div className="card-subtitle">{item.title}</div>}
       <div className="chips">
-        <span className="chip client">{item.client_name}</span>
+        {showStage
+          ? <span className="chip tone-sky">{STAGE_LABELS[item.current_stage] || item.current_stage}</span>
+          : <span className="chip client">{item.client_name}</span>}
         {item.status.includes('waiting') && <span className="chip waiting">Em espera</span>}
         {item.labels.map(label => <span key={label.id} className={`chip tone-${label.tone}`}>{label.name}</span>)}
       </div>

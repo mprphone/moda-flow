@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { DndContext, DragEndEvent, PointerSensor, useSensor, useSensors } from '@dnd-kit/core'
-import { Filter, PencilRuler, Shirt, Archive, RotateCcw } from 'lucide-react'
+import { Filter, PencilRuler, Shirt, Archive, RotateCcw, Building2 } from 'lucide-react'
 import { api } from '../api/client'
 import { useAuth } from '../auth'
 import { toast } from '../lib/toast'
@@ -9,7 +9,7 @@ import { PHASE_ONE, PHASE_ONE_IDS, PHASE_TWO } from '../constants/pipeline'
 import { BoardColumn } from '../components/BoardColumn'
 import { DevelopmentModal } from '../components/DevelopmentModal'
 
-type Phase = 'design' | 'sample' | 'rejected'
+type Phase = 'design' | 'sample' | 'client' | 'rejected'
 
 export function BoardPage({ refreshKey }: { refreshKey: number }) {
   const { user } = useAuth()
@@ -48,10 +48,15 @@ export function BoardPage({ refreshKey }: { refreshKey: number }) {
   const designCount = active.filter(item => isPhaseOne(item.current_stage)).length
   const sampleCount = active.filter(item => !isPhaseOne(item.current_stage)).length
 
-  const columns = phase === 'design' ? PHASE_ONE : PHASE_TWO
+  const byClient = phase === 'client'
+  // Vista por cliente: colunas = clientes com trabalho ativo; senão colunas = fases
+  const activeClients = useMemo(() => [...new Set(active.map(item => item.client_name))].sort(), [active])
+  const columns = byClient
+    ? activeClients.map(name => [name, name] as [string, string])
+    : (phase === 'design' ? PHASE_ONE : PHASE_TWO)
   const grouped = useMemo(
-    () => Object.fromEntries(columns.map(([id]) => [id, active.filter(item => item.current_stage === id)])),
-    [columns, active],
+    () => Object.fromEntries(columns.map(([id]) => [id, active.filter(item => byClient ? item.client_name === id : item.current_stage === id)])),
+    [columns, active, byClient],
   )
 
   async function move(id: number, stage: string) {
@@ -113,7 +118,7 @@ export function BoardPage({ refreshKey }: { refreshKey: number }) {
   }
 
   function handleDragEnd(event: DragEndEvent) {
-    if (!event.over) return
+    if (!event.over || byClient) return
     const item = event.active.data.current as Development
     const stage = String(event.over.id)
     if (item.current_stage !== stage) void move(item.id, stage)
@@ -132,6 +137,7 @@ export function BoardPage({ refreshKey }: { refreshKey: number }) {
     <div className="phase-tabs">
       <button className={phase === 'design' ? 'active' : ''} onClick={() => setPhase('design')}><PencilRuler size={15}/>1 · Propostas <span>{designCount}</span></button>
       <button className={phase === 'sample' ? 'active' : ''} onClick={() => setPhase('sample')}><Shirt size={15}/>2 · Amostra física <span>{sampleCount}</span></button>
+      <button className={phase === 'client' ? 'active' : ''} onClick={() => setPhase('client')}><Building2 size={15}/>Por cliente <span>{active.length}</span></button>
       <button className={phase === 'rejected' ? 'active' : ''} onClick={() => setPhase('rejected')}><Archive size={15}/>Arquivo <span>{rejected.length}</span></button>
     </div>
     <div className="filter-bar">
@@ -155,7 +161,7 @@ export function BoardPage({ refreshKey }: { refreshKey: number }) {
     </div>
     {phase !== 'rejected' && <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
       <div className="board-scroll">
-        {columns.map(([id, title]) => <BoardColumn key={id} id={id} title={title} items={grouped[id] || []} onOpen={setSelected}/>) }
+        {columns.map(([id, title]) => <BoardColumn key={id} id={id} title={title} items={grouped[id] || []} onOpen={setSelected} showStage={byClient}/>) }
       </div>
     </DndContext>}
     {phase === 'rejected' && <div className="rejected-list">
