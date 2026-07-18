@@ -143,6 +143,7 @@ def reconcile(app: dict[str, list[dict]], cards: dict[str, list[dict]]) -> tuple
 
     # Desenvolvimento: o código é estável e pode surgir antes ou depois do título.
     dev_found = 0
+    dev_name_index = unique_index(cards["development"])
     for item in app["development"]:
         code = normalize(item.get("code"))
         candidates = [
@@ -151,8 +152,8 @@ def reconcile(app: dict[str, list[dict]], cards: dict[str, list[dict]]) -> tuple
         ]
         if len(candidates) != 1:
             candidates = [card for card in cards["development"] if code and code in normalize(card["name"])]
-        if len(candidates) == 1:
-            card = candidates[0]
+        card = candidates[0] if len(candidates) == 1 else dev_name_index.get(normalize(item.get("title")))
+        if card:
             matches.append(Match("development", item["id"], card, source_created_at=card_created_at(card)))
             dev_found += 1
     unmatched["development"] = len(app["development"]) - dev_found
