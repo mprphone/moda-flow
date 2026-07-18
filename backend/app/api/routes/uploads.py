@@ -43,6 +43,40 @@ def to_rgb(image: Image.Image) -> Image.Image:
     return image.convert("RGB")
 
 
+@router.post("/recompress")
+def recompress_existing():
+    """Re-comprime as imagens já guardadas (grandes, de antes da compressão) para libertar disco.
+
+    Escreve por cima do mesmo ficheiro; como o resultado é menor, funciona mesmo com o disco cheio.
+    """
+    directory = Path(settings.upload_dir)
+    done = 0
+    skipped = 0
+    freed = 0
+    for path in directory.glob("*"):
+        if not path.is_file():
+            continue
+        try:
+            raw = path.read_bytes()
+            before = len(raw)
+            image = Image.open(io.BytesIO(raw))
+            image = ImageOps.exif_transpose(image)
+            image = to_rgb(image)
+            image.thumbnail((MAX_SIDE, MAX_SIDE), Image.LANCZOS)
+            buffer = io.BytesIO()
+            image.save(buffer, format="JPEG", quality=JPEG_QUALITY, optimize=True)
+            out = buffer.getvalue()
+            if len(out) < before - 4096:  # só reescreve se poupar pelo menos 4 KB
+                path.write_bytes(out)
+                freed += before - len(out)
+                done += 1
+            else:
+                skipped += 1
+        except Exception:
+            skipped += 1
+    return {"recompressed": done, "skipped": skipped, "freed_mb": round(freed / 1024 / 1024, 1)}
+
+
 @router.post("", status_code=201)
 async def upload_image(file: UploadFile):
     if (file.content_type or "") not in ALLOWED_TYPES:
