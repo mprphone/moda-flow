@@ -1,6 +1,6 @@
 from datetime import date, datetime
 from decimal import Decimal
-from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Integer, Numeric, String
+from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Integer, Numeric, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.core.db import Base
 from app.core.enums import ShoppingStatus
@@ -20,6 +20,9 @@ class ShoppingPurchase(Base):
     invoice_number: Mapped[str | None] = mapped_column(String(120), nullable=True)
     credit_note_number: Mapped[str | None] = mapped_column(String(120), nullable=True)
     refund_received: Mapped[bool] = mapped_column(Boolean, default=False)
+    invoice_sent: Mapped[bool] = mapped_column(Boolean, default=False)
+    credit_note_sent: Mapped[bool] = mapped_column(Boolean, default=False)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     cover_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
     development_id: Mapped[int | None] = mapped_column(ForeignKey("developments.id"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)

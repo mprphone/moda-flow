@@ -11,6 +11,9 @@ class ShoppingCreate(ORMModel):
     invoice_number: str | None = None
     cover_url: str | None = None
     development_id: int | None = None
+    notes: str | None = None
+    invoice_sent: bool = False
+    credit_note_sent: bool = False
 
 
 class ShoppingUpdate(ORMModel):
@@ -20,6 +23,14 @@ class ShoppingUpdate(ORMModel):
     return_deadline: date | None = None
     invoice_number: str | None = None
     cover_url: str | None = None
+    brand: str | None = None
+    reference: str | None = None
+    amount: float | None = None
+    purchase_date: date | None = None
+    development_id: int | None = None
+    notes: str | None = None
+    invoice_sent: bool | None = None
+    credit_note_sent: bool | None = None
 
 
 class ShoppingOut(ShoppingCreate):

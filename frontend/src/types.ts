@@ -121,6 +121,10 @@ export type ShoppingPurchase = {
   invoice_number?: string
   credit_note_number?: string
   refund_received: boolean
+  invoice_sent: boolean
+  credit_note_sent: boolean
+  notes?: string
+  development_id?: number
   cover_url?: string
   days_to_return?: number
 }

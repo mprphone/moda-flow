@@ -25,6 +25,9 @@ class Settings(BaseSettings):
     public_url: str = "http://localhost:8000"
     # Pasta onde ficam as imagens carregadas; no Railway deve ter um Volume montado (env UPLOAD_DIR).
     upload_dir: str = "uploads"
+    # Leitura opcional de fotografias de etiquetas/faturas no Shopping.
+    openai_api_key: str | None = None
+    openai_vision_model: str = "gpt-5-mini"
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
 

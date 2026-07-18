@@ -6,8 +6,15 @@ from app.repositories.shopping_repository import list_all
 from app.schemas.shopping import ShoppingCreate, ShoppingUpdate
 from app.services.shopping.auto_transitions import apply_auto_transitions
 from app.services.shopping.serialize_purchase import serialize_purchase
+from app.services.shopping.read_photo import read_shopping_photo
+from app.core.enums import ShoppingStatus
+from app.schemas.common import ORMModel
 
 router = APIRouter()
+
+
+class ShoppingPhotoRead(ORMModel):
+    image_url: str
 
 
 @router.get("")
@@ -26,12 +33,20 @@ def post_shopping(payload: ShoppingCreate, db: Session = Depends(get_db)):
     return serialize_purchase(item)
 
 
+@router.post("/read-photo")
+def read_photo(payload: ShoppingPhotoRead):
+    return read_shopping_photo(payload.image_url)
+
+
 @router.patch("/{purchase_id}")
 def patch_shopping(purchase_id: int, payload: ShoppingUpdate, db: Session = Depends(get_db)):
     item = db.get(ShoppingPurchase, purchase_id)
     if not item:
         raise HTTPException(status_code=404, detail="Compra não encontrada")
-    for key, value in payload.model_dump(exclude_unset=True).items():
+    data = payload.model_dump(exclude_unset=True)
+    if data.get("status") and data["status"] not in {status.value for status in ShoppingStatus}:
+        raise HTTPException(status_code=422, detail="Estado de Shopping inválido")
+    for key, value in data.items():
         setattr(item, key, value)
     db.commit()
     db.refresh(item)
