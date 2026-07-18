@@ -52,5 +52,11 @@ def test_fabric_request_lifecycle(client, db_session):
     invalid = client.patch(f"/api/fabric-requests/{body['id']}", json={"status": "inexistente"}, headers=headers)
     assert invalid.status_code == 422
 
+    # apagar um desenvolvimento com malhas associadas desliga-as em vez de falhar
+    other = client.post("/api/fabric-requests", json={"reference": "OUTRA REF", "development_id": dev_id}, headers=headers).json()
+    assert client.delete(f"/api/developments/{dev_id}", headers=headers).status_code == 204
+    remaining = client.get("/api/fabric-requests", headers=headers).json()["items"]
+    assert any(i["id"] == other["id"] and i["development_id"] is None for i in remaining)
+
     deleted = client.delete(f"/api/fabric-requests/{body['id']}", headers=headers)
     assert deleted.status_code == 204

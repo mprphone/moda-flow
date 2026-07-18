@@ -173,7 +173,7 @@ export function FabricsPage() {
     <div className="page-heading">
       <div>
         <h1>Malhas</h1>
-        <p>{pendingCount} em curso · {reminderCount} há 5+ dias sem chegar ⚠. Arraste os cartões; duplo clique abre.</p>
+        <p>{pendingCount} em curso · {reminderCount} há 5+ dias sem chegar ⚠. Clique abre o cartão; arraste para mover.</p>
       </div>
       <button className="primary-button" onClick={() => setCreating(true)}>+ Pedir malha</button>
     </div>

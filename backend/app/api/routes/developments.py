@@ -3,6 +3,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 from app.core.db import get_db
 from app.models.comment import Comment
+from app.models.fabric_request import FabricRequest
 from app.models.label import Label
 from app.repositories.development_repository import list_all, get_by_id
 from app.schemas.development import CommentCreate, DevelopmentCreate, DevelopmentMove, QuickUpdate
@@ -62,6 +63,8 @@ def delete_development(development_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=409, detail="Tem produções associadas. Cancele o desenvolvimento em vez de o apagar.")
     for purchase in item.shopping:
         purchase.development_id = None
+    for fabric in db.scalars(select(FabricRequest).where(FabricRequest.development_id == development_id)).all():
+        fabric.development_id = None
     db.delete(item)
     db.commit()
 
