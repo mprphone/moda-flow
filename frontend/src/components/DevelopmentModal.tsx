@@ -35,6 +35,8 @@ const TASK_NAMES: Record<string, string> = {
 const TASK_STATUS_NAMES: Record<string, string> = { pending: 'Pendente', in_progress: 'Em curso', waiting: 'A aguardar', done: 'Concluída', cancelled: 'Cancelada' }
 const ROLE_NAMES: Record<string, string> = { principal: 'Principal', parceria: 'Parceria', fitting: 'Fitting', qualidade: 'Qualidade', grafico: 'Gráfico' }
 
+const WAITING_STATUSES = ['waiting_supplier', 'waiting_client', 'blocked']
+
 type Props = {
   item: Development
   labels: Label[]
@@ -210,8 +212,29 @@ export function DevelopmentModal({ item, labels, onClose, onMove, onStatus, onRe
   const traceStages = (inIntake ? PHASE_ONE : PIPELINE) as unknown as [string, string][]
   const showFabrics = !inIntake || (detail?.fabric_requests.length ?? 0) > 0
   const showProductions = (detail?.productions.length ?? 0) > 0
+  const isWaiting = WAITING_STATUSES.includes(item.status)
 
   const photos = [...new Set([...(detail?.images || item.images || []), ...(item.cover_url ? [item.cover_url] : [])])]
+  const assignees = detail?.assignees || item.assignees
+  const tasks = detail?.tasks || item.tasks
+  const comments = detail?.comments || []
+
+  // Botão principal de avanço, consoante a fase.
+  const advanceButton = item.current_stage === 'proposta_cliente'
+    ? <button className="advance-btn" onClick={() => onMove('ficha_tecnica')}>Distribuição concluída — criar ficha técnica <ArrowRight size={17}/></button>
+    : item.current_stage === 'envio_cliente'
+      ? <button className="advance-btn" onClick={() => onMove('resposta_cliente', 'Amostra enviada ao cliente; aguarda resposta.')}>Amostra enviada — aguardar resposta do cliente <ArrowRight size={17}/></button>
+    : item.current_stage === 'resposta_cliente'
+      ? <div className="advance-row customer-decision">
+          <button className="advance-btn ok" onClick={() => onMove('aprovado', 'Cliente aprovou a amostra.')}>✔ Cliente aprovou</button>
+          <button className="advance-btn" onClick={() => onMove('retificacoes', window.prompt('Que retificações pediu o cliente?') || 'Cliente pediu retificações.')}>↺ Pediu retificações</button>
+          <button className="advance-btn no" onClick={() => onReject(window.prompt('Motivo da reprovação (opcional):') || undefined)}>✖ Cliente reprovou</button>
+        </div>
+    : item.current_stage === 'retificacoes'
+      ? <button className="advance-btn" onClick={() => onMove('envio_cliente', 'Retificações concluídas; nova versão pronta para envio.')}>Retificações concluídas — reenviar ao cliente <ArrowRight size={17}/></button>
+    : item.current_stage === 'aprovado'
+      ? <button className="advance-btn" onClick={createProduction}>Criar produção industrial <Factory size={17}/></button>
+      : <button className="advance-btn" onClick={() => onMove(next[0])}>Concluir “{STAGE_LABELS[item.current_stage]}” e avançar para “{next[1]}” <ArrowRight size={17}/></button>
 
   return <div className="modal-backdrop" onMouseDown={onClose}><div className="modal-card development-detail-modal" onMouseDown={e => e.stopPropagation()}>
     <button className="modal-close" onClick={onClose}><X/></button>
@@ -250,70 +273,71 @@ export function DevelopmentModal({ item, labels, onClose, onMove, onStatus, onRe
           <span className="designer-hint">(clique para juntar em parceria)</span>
         </div>}
         <LabelPicker all={labels} applied={item.labels} onChange={onLabels}/>
-        <section className="history-section parallel-work">
-          <div className="section-title"><UsersRound size={18}/><strong>Equipa e funções</strong></div>
-          <div className="structured-chips">
-            {(detail?.assignees || item.assignees).map(person => <span className="structured-chip" key={person.id}>
-              <strong>{person.name}</strong> · {ROLE_NAMES[person.role] || person.role}
-              <button type="button" onClick={() => void removeAssignee(person.id)}>×</button>
-            </span>)}
-            {(detail?.assignees || item.assignees).length === 0 && <span className="empty-note">Sem equipa estruturada; mantém-se {item.owner_name} como responsável principal.</span>}
-          </div>
-          <div className="structured-add">
-            <select value={assigneeForm.user_id} onChange={e => setAssigneeForm({ ...assigneeForm, user_id: e.target.value })}>
-              <option value="">Adicionar pessoa...</option>{teamUsers.map(user => <option key={user.id} value={user.id}>{user.name}</option>)}
-            </select>
-            <select value={assigneeForm.role} onChange={e => setAssigneeForm({ ...assigneeForm, role: e.target.value })}>
-              {Object.entries(ROLE_NAMES).map(([id, name]) => <option key={id} value={id}>{name}</option>)}
-            </select>
-            <button type="button" disabled={!assigneeForm.user_id} onClick={() => void addAssignee()}>Adicionar</button>
+
+        {/* O QUE FAZER AGORA — destaque no topo */}
+        <section className="action-focus">
+          <div className="compact-pipeline">{traceStages.map(([id, label]) => {
+            const i = PIPELINE.findIndex(([pid]) => pid === id)
+            return <button key={id} disabled={i >= index} className={i < index ? 'done' : i === index ? 'active' : ''} onClick={() => onMove(id)}><span>{i + 1}</span>{label}</button>
+          })}</div>
+          {advanceButton}
+          <div className="stage-now">
+            <span><small>PRÓXIMA AÇÃO</small><strong>{item.next_action}</strong></span>
+            {(isWaiting || item.waiting_reason) && <span className="stage-now-wait"><small>MOTIVO DE ESPERA</small><strong>{item.waiting_reason || 'Sem bloqueios registados'}</strong></span>}
           </div>
         </section>
-        <section className="history-section parallel-work">
-          <div className="section-title"><ListChecks size={18}/><strong>Pendências paralelas</strong></div>
-          <p className="section-help">A partir da ficha técnica, malhas, acessórios, tinturaria, shopping, bordados e aplicações podem avançar em simultâneo.</p>
-          <div className="parallel-task-list">
-            {(detail?.tasks || item.tasks).map(task => <div className={`parallel-task ${task.status === 'done' ? 'is-done' : ''}`} key={task.id}>
-              <div><strong>{TASK_NAMES[task.kind] || task.kind}</strong><span>{task.note || 'Sem nota'}{task.responsible_name ? ` · ${task.responsible_name}` : ''}</span></div>
-              <select value={task.status} onChange={e => void updateTask(task.id, { status: e.target.value })}>
-                {Object.entries(TASK_STATUS_NAMES).map(([id, name]) => <option key={id} value={id}>{name}</option>)}
+
+        {item.suggestions.length > 0 && <section className="smart-panel"><div><Sparkles size={20}/><strong>Assistente do desenvolvimento</strong></div>{item.suggestions.map(text => <p key={text}>{text}</p>)}</section>}
+
+        <details className="collapsible">
+          <summary><UsersRound size={16}/> Equipa e funções <span className="count">{assignees.length}</span></summary>
+          <div className="collapsible-body">
+            <div className="structured-chips">
+              {assignees.map(person => <span className="structured-chip" key={person.id}>
+                <strong>{person.name}</strong> · {ROLE_NAMES[person.role] || person.role}
+                <button type="button" onClick={() => void removeAssignee(person.id)}>×</button>
+              </span>)}
+              {assignees.length === 0 && <span className="empty-note">Sem equipa estruturada; mantém-se {item.owner_name} como responsável principal.</span>}
+            </div>
+            <div className="structured-add">
+              <select value={assigneeForm.user_id} onChange={e => setAssigneeForm({ ...assigneeForm, user_id: e.target.value })}>
+                <option value="">Adicionar pessoa...</option>{teamUsers.map(user => <option key={user.id} value={user.id}>{user.name}</option>)}
               </select>
-              <button className="icon-danger" type="button" onClick={() => void removeTask(task.id)}><Trash2 size={14}/></button>
-            </div>)}
-            {(detail?.tasks || item.tasks).length === 0 && <p className="empty-note">Sem pendências paralelas.</p>}
+              <select value={assigneeForm.role} onChange={e => setAssigneeForm({ ...assigneeForm, role: e.target.value })}>
+                {Object.entries(ROLE_NAMES).map(([id, name]) => <option key={id} value={id}>{name}</option>)}
+              </select>
+              <button type="button" disabled={!assigneeForm.user_id} onClick={() => void addAssignee()}>Adicionar</button>
+            </div>
           </div>
-          <div className="structured-add task-add">
-            <select value={taskForm.kind} onChange={e => setTaskForm({ ...taskForm, kind: e.target.value })}>
-              {Object.entries(TASK_NAMES).map(([id, name]) => <option key={id} value={id}>{name}</option>)}
-            </select>
-            <input value={taskForm.note} onChange={e => setTaskForm({ ...taskForm, note: e.target.value })} placeholder="Nota ou bloqueio..."/>
-            <select value={taskForm.responsible_user_id} onChange={e => setTaskForm({ ...taskForm, responsible_user_id: e.target.value })}>
-              <option value="">Sem responsável</option>{teamUsers.map(user => <option key={user.id} value={user.id}>{user.name}</option>)}
-            </select>
-            <button type="button" onClick={() => void addTask()}>Adicionar</button>
+        </details>
+
+        <details className="collapsible">
+          <summary><ListChecks size={16}/> Pendências paralelas <span className="count">{tasks.length}</span></summary>
+          <div className="collapsible-body">
+            <p className="section-help">A partir da ficha técnica, malhas, acessórios, tinturaria, shopping, bordados e aplicações podem avançar em simultâneo.</p>
+            <div className="parallel-task-list">
+              {tasks.map(task => <div className={`parallel-task ${task.status === 'done' ? 'is-done' : ''}`} key={task.id}>
+                <div><strong>{TASK_NAMES[task.kind] || task.kind}</strong><span>{task.note || 'Sem nota'}{task.responsible_name ? ` · ${task.responsible_name}` : ''}</span></div>
+                <select value={task.status} onChange={e => void updateTask(task.id, { status: e.target.value })}>
+                  {Object.entries(TASK_STATUS_NAMES).map(([id, name]) => <option key={id} value={id}>{name}</option>)}
+                </select>
+                <button className="icon-danger" type="button" onClick={() => void removeTask(task.id)}><Trash2 size={14}/></button>
+              </div>)}
+              {tasks.length === 0 && <p className="empty-note">Sem pendências paralelas.</p>}
+            </div>
+            <div className="structured-add task-add">
+              <select value={taskForm.kind} onChange={e => setTaskForm({ ...taskForm, kind: e.target.value })}>
+                {Object.entries(TASK_NAMES).map(([id, name]) => <option key={id} value={id}>{name}</option>)}
+              </select>
+              <input value={taskForm.note} onChange={e => setTaskForm({ ...taskForm, note: e.target.value })} placeholder="Nota ou bloqueio..."/>
+              <select value={taskForm.responsible_user_id} onChange={e => setTaskForm({ ...taskForm, responsible_user_id: e.target.value })}>
+                <option value="">Sem responsável</option>{teamUsers.map(user => <option key={user.id} value={user.id}>{user.name}</option>)}
+              </select>
+              <button type="button" onClick={() => void addTask()}>Adicionar</button>
+            </div>
           </div>
-        </section>
-        <div className="compact-pipeline">{traceStages.map(([id,label]) => {
-          const i = PIPELINE.findIndex(([pid]) => pid === id)
-          return <button key={id} disabled={i >= index} className={i < index ? 'done' : i === index ? 'active' : ''} onClick={() => onMove(id)}><span>{i+1}</span>{label}</button>
-        })}</div>
-        <section className="smart-panel"><div><Sparkles size={20}/><strong>Assistente do desenvolvimento</strong></div>{item.suggestions.length ? item.suggestions.map(text => <p key={text}>{text}</p>) : <p>O desenvolvimento está dentro do ritmo normal.</p>}</section>
-        <section className="current-stage"><div className="section-title"><Layers3 size={18}/><strong>Fase atual</strong></div><div className="stage-focus"><div><small>ONDE ESTÁ</small><strong>{STAGE_LABELS[item.current_stage]}</strong></div><div><small>PRÓXIMA AÇÃO</small><strong>{item.next_action}</strong></div><div><small>MOTIVO DE ESPERA</small><strong>{item.waiting_reason || 'Sem bloqueios registados'}</strong></div></div></section>
-        {item.current_stage === 'proposta_cliente'
-          ? <button className="advance-btn" onClick={() => onMove('ficha_tecnica')}>Distribuição concluída — criar ficha técnica <ArrowRight size={17}/></button>
-          : item.current_stage === 'envio_cliente'
-            ? <button className="advance-btn" onClick={() => onMove('resposta_cliente', 'Amostra enviada ao cliente; aguarda resposta.')}>Amostra enviada — aguardar resposta do cliente <ArrowRight size={17}/></button>
-          : item.current_stage === 'resposta_cliente'
-            ? <div className="advance-row customer-decision">
-                <button className="advance-btn ok" onClick={() => onMove('aprovado', 'Cliente aprovou a amostra.')}>✔ Cliente aprovou</button>
-                <button className="advance-btn" onClick={() => onMove('retificacoes', window.prompt('Que retificações pediu o cliente?') || 'Cliente pediu retificações.')}>↺ Pediu retificações</button>
-                <button className="advance-btn no" onClick={() => onReject(window.prompt('Motivo da reprovação (opcional):') || undefined)}>✖ Cliente reprovou</button>
-              </div>
-          : item.current_stage === 'retificacoes'
-            ? <button className="advance-btn" onClick={() => onMove('envio_cliente', 'Retificações concluídas; nova versão pronta para envio.')}>Retificações concluídas — reenviar ao cliente <ArrowRight size={17}/></button>
-          : item.current_stage === 'aprovado'
-            ? <button className="advance-btn" onClick={createProduction}>Criar produção industrial <Factory size={17}/></button>
-            : <button className="advance-btn" onClick={() => onMove(next[0])}>Concluir “{STAGE_LABELS[item.current_stage]}” e avançar para “{next[1]}” <ArrowRight size={17}/></button>}
+        </details>
+
         <section className="history-section notes-section">
           <div className="section-title"><StickyNote size={18}/><strong>Notas</strong></div>
           <textarea
@@ -382,25 +406,27 @@ export function DevelopmentModal({ item, labels, onClose, onMove, onStatus, onRe
           </div>}
         </section>
 
-        <section className="history-section">
-          <div className="section-title"><MessageCircle size={18}/><strong>Comentários</strong></div>
-          <div className="comment-box">
-            <textarea placeholder="Escrever um comentário..." value={comment} onChange={e => setComment(e.target.value)}/>
-            <button disabled={saving || !comment.trim()} onClick={() => void submitComment()}>Comentar</button>
+        <details className="collapsible">
+          <summary><MessageCircle size={16}/> Comentários <span className="count">{comments.length}</span></summary>
+          <div className="collapsible-body">
+            <div className="comment-box">
+              <textarea placeholder="Escrever um comentário..." value={comment} onChange={e => setComment(e.target.value)}/>
+              <button disabled={saving || !comment.trim()} onClick={() => void submitComment()}>Comentar</button>
+            </div>
+            <div className="history-list">{comments.map(c => <div className="comment-row" key={c.id}>
+              <strong>{c.author}</strong>
+              <span>{c.body}</span>
+              <small>{new Date(c.created_at).toLocaleString('pt-PT', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</small>
+            </div>)}</div>
           </div>
-          <div className="history-list">{(detail?.comments || []).map(c => <div className="comment-row" key={c.id}>
-            <strong>{c.author}</strong>
-            <span>{c.body}</span>
-            <small>{new Date(c.created_at).toLocaleString('pt-PT', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</small>
-          </div>)}</div>
-        </section>
+        </details>
       </div>
       <aside className="modal-side">
         <h3>Ações rápidas</h3>
         <button className="action" onClick={() => waitFor('waiting_supplier', 'espera do fornecedor')}>Aguardar fornecedor</button>
         <button className="action" onClick={() => waitFor('waiting_client', 'espera do cliente')}>Aguardar cliente</button>
         <button className="action" onClick={() => onStatus('blocked', window.prompt('Qual é o bloqueio?') || undefined)}>Registar bloqueio</button>
-        {(item.status === 'waiting_supplier' || item.status === 'waiting_client' || item.status === 'blocked') &&
+        {isWaiting &&
           <button className="action" onClick={() => onStatus('active')}>Retomar (limpar espera)</button>}
         <button className="action danger" onClick={confirmDelete}><Trash2 size={15}/> Eliminar desenvolvimento</button>
         <div className="mini-note">O botão grande avança de fase. Estas ações registam esperas e bloqueios.</div>
