@@ -1,15 +1,26 @@
 import { useEffect, useState } from 'react'
-import { X, Sparkles, Clock3, UserRound, CalendarDays, ArrowRight, Layers3, Factory, Tag, Trash2, TrendingUp, MessageCircle, StickyNote, Scroll } from 'lucide-react'
+import { X, Sparkles, Clock3, UserRound, CalendarDays, ArrowRight, Layers3, Factory, Trash2, TrendingUp, MessageCircle, StickyNote, Scroll } from 'lucide-react'
+import { api } from '../api/client'
+import { toast } from '../lib/toast'
+import { StageTrace } from './StageTrace'
+import { LabelPicker } from './LabelPicker'
+import type { Development, DevelopmentDetail, Label, Supplier } from '../types'
+import { PIPELINE, STAGE_LABELS } from '../constants/pipeline'
 
 const PRODUCTION_STAGE_NAMES: Record<string, string> = {
   encomenda_recebida: 'Encomenda recebida', materiais: 'Materiais', corte: 'Corte',
   confecao: 'Confeção', controlo_qualidade: 'Controlo qualidade', expedida: 'Expedida', cancelada: 'Cancelada',
 }
-import { api } from '../api/client'
-import { toast } from '../lib/toast'
-import { StageTrace } from './StageTrace'
-import type { Development, DevelopmentDetail, Label, Supplier } from '../types'
-import { PIPELINE, STAGE_LABELS } from '../constants/pipeline'
+
+const STATUS_BADGE: Record<string, { label: string; tone: string }> = {
+  active: { label: 'Em curso', tone: 'sky' },
+  waiting_supplier: { label: 'Aguarda fornecedor', tone: 'yellow' },
+  waiting_client: { label: 'Aguarda cliente', tone: 'yellow' },
+  blocked: { label: 'Bloqueado', tone: 'pink' },
+  completed: { label: 'Aprovado', tone: 'mint' },
+  rejected: { label: 'Reprovado', tone: 'pink' },
+  cancelled: { label: 'Cancelado', tone: 'lilac' },
+}
 
 type Props = {
   item: Development
@@ -61,7 +72,6 @@ export function DevelopmentModal({ item, labels, onClose, onMove, onStatus, onRe
 
   const index = PIPELINE.findIndex(([id]) => id === item.current_stage)
   const next = PIPELINE[Math.min(index + 1, PIPELINE.length - 1)]
-  const activeLabelIds = new Set(item.labels.map(label => label.id))
 
   function waitFor(status: string, label: string) {
     const reason = window.prompt(`Motivo / informação de ${label}:`, item.waiting_reason || '') || undefined
@@ -70,12 +80,6 @@ export function DevelopmentModal({ item, labels, onClose, onMove, onStatus, onRe
   function createProduction() {
     const value = Number(window.prompt('Quantidade da produção:', String(item.production_quantity || 1000)))
     if (Number.isFinite(value) && value > 0) onCreateProduction(value)
-  }
-  function toggleLabel(id: number) {
-    const nextIds = activeLabelIds.has(id)
-      ? item.labels.filter(label => label.id !== id).map(label => label.id)
-      : [...item.labels.map(label => label.id), id]
-    onLabels(nextIds)
   }
   function confirmDelete() {
     if (window.confirm(`Eliminar definitivamente ${item.code}? Esta ação não pode ser desfeita.`)) onDelete()
@@ -110,21 +114,17 @@ export function DevelopmentModal({ item, labels, onClose, onMove, onStatus, onRe
     <div className="modal-main">
       <div className="modal-content">
         <div className="eyebrow">{item.client_name} · {STAGE_LABELS[item.current_stage]}</div>
-        <h2>{item.title === item.code ? item.title : `${item.code} — ${item.title}`}</h2>
+        <div className="modal-title-row">
+          <h2>{item.title === item.code ? item.title : `${item.code} — ${item.title}`}</h2>
+          {STATUS_BADGE[item.status] && <span className={`status-badge tone-${STATUS_BADGE[item.status].tone}`}>{STATUS_BADGE[item.status].label}</span>}
+        </div>
         <div className="quick-meta">
           <span><UserRound size={16}/>{item.owner_name}</span>
           <span><Clock3 size={16}/>{item.days_in_stage} dias nesta fase</span>
           <span><CalendarDays size={16}/>{item.due_date || 'Sem prazo'}</span>
           {detail?.estimated_completion && <span className={detail.eta_at_risk ? 'eta-risk' : ''}><TrendingUp size={16}/>Previsão: {detail.estimated_completion}{detail.eta_at_risk ? ' ⚠ depois do prazo' : ''}</span>}
         </div>
-        <div className="label-row">
-          <Tag size={14}/>
-          {labels.map(label => <button
-            key={label.id}
-            className={`chip tone-${label.tone} label-toggle ${activeLabelIds.has(label.id) ? 'on' : ''}`}
-            onClick={() => toggleLabel(label.id)}
-          >{label.name}</button>)}
-        </div>
+        <LabelPicker all={labels} applied={item.labels} onChange={onLabels}/>
         <div className="compact-pipeline">{PIPELINE.map(([id,label], i) => <button key={id} className={i < index ? 'done' : i === index ? 'active' : ''} onClick={() => onMove(id)}><span>{i+1}</span>{label}</button>)}</div>
         <section className="smart-panel"><div><Sparkles size={20}/><strong>Assistente do desenvolvimento</strong></div>{item.suggestions.length ? item.suggestions.map(text => <p key={text}>{text}</p>) : <p>O desenvolvimento está dentro do ritmo normal.</p>}</section>
         <section className="current-stage"><div className="section-title"><Layers3 size={18}/><strong>Fase atual</strong></div><div className="stage-focus"><div><small>ONDE ESTÁ</small><strong>{STAGE_LABELS[item.current_stage]}</strong></div><div><small>PRÓXIMA AÇÃO</small><strong>{item.next_action}</strong></div><div><small>MOTIVO DE ESPERA</small><strong>{item.waiting_reason || 'Sem bloqueios registados'}</strong></div></div></section>

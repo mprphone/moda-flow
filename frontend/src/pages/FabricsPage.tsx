@@ -4,6 +4,7 @@ import { AlertTriangle, Clock3, Scroll, Trash2, X } from 'lucide-react'
 import { api } from '../api/client'
 import { toast } from '../lib/toast'
 import { UploadInput } from '../components/UploadInput'
+import { LabelPicker } from '../components/LabelPicker'
 import type { Development, FabricRequest, Label, Supplier } from '../types'
 
 type Response = { statuses: string[]; items: FabricRequest[] }
@@ -212,17 +213,7 @@ export function FabricsPage() {
         <p>{[selected.article, selected.composition, selected.grammage ? `${selected.grammage} g` : null, selected.width ? `${selected.width} m` : null].filter(Boolean).join(' · ') || 'Sem ficha da etiqueta'}
           {selected.quantity_meters ? ` — ${selected.quantity_meters} metros` : ''}{selected.price_per_meter ? ` — ${selected.price_per_meter.toFixed(2)} €/mt` : ''}{selected.leadtime ? ` — ${selected.leadtime}` : ''}</p>
         {selected.notes && <p className="fabric-notes">{selected.notes}</p>}
-        <div className="label-row">
-          {labels.map(label => {
-            const on = selected.labels.some(l => l.id === label.id)
-            return <button
-              key={label.id}
-              type="button"
-              className={`chip tone-${label.tone} label-toggle ${on ? 'on' : ''}`}
-              onClick={() => void patchItem(selected.id, { label_ids: on ? selected.labels.filter(l => l.id !== label.id).map(l => l.id) : [...selected.labels.map(l => l.id), label.id] })}
-            >{label.name}</button>
-          })}
-        </div>
+        <LabelPicker all={labels} applied={selected.labels} onChange={(ids) => void patchItem(selected.id, { label_ids: ids })}/>
         <label>Estado<select value={selected.status} onChange={e => void patchItem(selected.id, { status: e.target.value }, 'Estado atualizado.')}>
           {data.statuses.map(status => <option key={status} value={status}>{FABRIC_STATUS_NAMES[status] || status}</option>)}
         </select></label>
