@@ -10,8 +10,8 @@ const SOURCES = [
   ['telefone', 'Telefone'], ['outro', 'Outro'],
 ]
 
-type ModelRow = { title: string; user_id: string; quantity: string; cover_url: string; code: string }
-const EMPTY_MODEL: ModelRow = { title: '', user_id: '', quantity: '', cover_url: '', code: '' }
+type ModelRow = { title: string; user_ids: number[]; quantity: string; cover_url: string; code: string }
+const EMPTY_MODEL: ModelRow = { title: '', user_ids: [], quantity: '', cover_url: '', code: '' }
 
 export function CreateDevelopmentModal({ onClose, onCreated }: { onClose: () => void; onCreated: (item: Development) => void }) {
   const [clients, setClients] = useState<Client[]>([])
@@ -26,10 +26,26 @@ export function CreateDevelopmentModal({ onClose, onCreated }: { onClose: () => 
   }, [])
 
   const client = clients.find(c => c.id === Number(order.client_id))
-  const designerName = (id: string) => team.find(t => String(t.id) === id)?.name || 'Por distribuir'
+  const designers = team.filter(t => t.role === 'designer' || t.role === 'admin')
+
+  // Iniciais: 1 designer -> as suas (IF); parceria -> primeira letra do 1.º nome de cada (IJ)
+  function initialsFor(ids: number[]): string {
+    const chosen = ids.map(id => team.find(t => t.id === id)).filter(Boolean) as User[]
+    if (chosen.length === 0) return ''
+    if (chosen.length === 1) return (chosen[0].initials || '').toUpperCase()
+    return chosen.map(d => (d.name.trim()[0] || '').toUpperCase()).join('')
+  }
+  function ownerName(ids: number[]): string {
+    const names = ids.map(id => team.find(t => t.id === id)?.name).filter(Boolean)
+    return names.length ? names.join(' + ') : 'Por distribuir'
+  }
 
   function updateModel(i: number, patch: Partial<ModelRow>) {
     setModels(current => current.map((m, idx) => idx === i ? { ...m, ...patch } : m))
+  }
+  function toggleDesigner(i: number, userId: number) {
+    setModels(current => current.map((m, idx) => idx !== i ? m
+      : { ...m, user_ids: m.user_ids.includes(userId) ? m.user_ids.filter(x => x !== userId) : [...m.user_ids, userId] }))
   }
   function addModel() { setModels(current => [...current, { ...EMPTY_MODEL }]) }
   function removeModel(i: number) { setModels(current => current.length > 1 ? current.filter((_, idx) => idx !== i) : current) }
@@ -41,8 +57,8 @@ export function CreateDevelopmentModal({ onClose, onCreated }: { onClose: () => 
       const res = await api.get<{ sequence: number }>(`/developments/next-reference?client_id=${order.client_id}`)
       let seq = res.sequence
       setModels(current => current.map(m => {
-        const initials = team.find(t => String(t.id) === m.user_id)?.initials || ''
-        const code = `${initials ? initials + '_' : ''}${client.code}_${String(seq).padStart(3, '0')}`
+        const ini = initialsFor(m.user_ids)
+        const code = `${ini ? ini + '_' : ''}${client.code}_${String(seq).padStart(3, '0')}`
         seq += 1
         return { ...m, code }
       }))
@@ -63,7 +79,7 @@ export function CreateDevelopmentModal({ onClose, onCreated }: { onClose: () => 
           code: m.code.trim(),
           title: m.title.trim(),
           client_id: Number(order.client_id),
-          owner_name: designerName(m.user_id),
+          owner_name: ownerName(m.user_ids),
           cover_url: m.cover_url || null,
           due_date: order.due_date || null,
           request_source: order.request_source,
@@ -71,6 +87,10 @@ export function CreateDevelopmentModal({ onClose, onCreated }: { onClose: () => 
           requested_quantity: m.quantity ? Number(m.quantity) : null,
           request_notes: order.request_notes || null,
         })
+        // regista a parceria: 1.ª designer = principal, restantes = parceria
+        for (let idx = 0; idx < m.user_ids.length; idx++) {
+          await api.post(`/developments/${created.id}/assignees`, { user_id: m.user_ids[idx], role: idx === 0 ? 'principal' : 'parceria' }).catch(() => undefined)
+        }
         if (!first) first = created
       }
       toast('success', valid.length === 1 ? 'Pedido criado.' : `Pedido criado com ${valid.length} modelos.`)
@@ -84,7 +104,7 @@ export function CreateDevelopmentModal({ onClose, onCreated }: { onClose: () => 
     <form className="create-modal wide" onSubmit={submit} onMouseDown={event => event.stopPropagation()}>
       <button type="button" className="modal-close" onClick={onClose}><X/></button>
       <h2>Novo pedido do cliente</h2>
-      <p>Registe o briefing. Um pedido pode ter vários modelos — cada um é atribuído a uma designer e recebe a sua referência.</p>
+      <p>Registe o briefing. Um pedido pode ter vários modelos — cada um pode ser de uma designer ou de uma parceria, e recebe a sua referência.</p>
 
       <div className="form-grid two">
         <label>Cliente *<select required value={order.client_id} onChange={e => setOrder({ ...order, client_id: e.target.value })}>
@@ -107,12 +127,14 @@ export function CreateDevelopmentModal({ onClose, onCreated }: { onClose: () => 
           <div className="model-num">{i + 1}</div>
           <div className="model-fields">
             <input className="model-title" required placeholder="Peça / descrição *" value={m.title} onChange={e => updateModel(i, { title: e.target.value })}/>
+            <div className="model-designers">
+              <span className="model-designers-label">Designer / parceria:</span>
+              {designers.map(d => <button type="button" key={d.id}
+                className={`designer-chip ${m.user_ids.includes(d.id) ? 'on' : ''}`}
+                onClick={() => toggleDesigner(i, d.id)}>{d.name}{d.initials ? ` (${d.initials})` : ''}</button>)}
+            </div>
             <div className="model-line">
-              <select value={m.user_id} onChange={e => updateModel(i, { user_id: e.target.value })}>
-                <option value="">Por distribuir</option>
-                {team.map(t => <option key={t.id} value={t.id}>{t.name}{t.initials ? ` (${t.initials})` : ''}</option>)}
-              </select>
-              <input type="number" min="1" className="model-qty" placeholder="Qtd." value={m.quantity} onChange={e => updateModel(i, { quantity: e.target.value })}/>
+              <input type="number" min="1" className="model-qty" placeholder="Quantidade" value={m.quantity} onChange={e => updateModel(i, { quantity: e.target.value })}/>
               <input className="model-code" placeholder="Referência" value={m.code} onChange={e => updateModel(i, { code: e.target.value.toUpperCase() })}/>
             </div>
             <UploadInput value={m.cover_url} onChange={url => updateModel(i, { cover_url: url })} label={`Foto do modelo ${i + 1}`}/>
