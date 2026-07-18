@@ -26,6 +26,16 @@ function deadlineInfo(value: string) {
   return { tone: 'safe', text: `${days} dias para devolver` }
 }
 
+function ShoppingCard({ item, onOpen, onUpdate }: { item: ShoppingPurchase; onOpen: () => void; onUpdate: (payload: Record<string, unknown>) => void }) {
+  return <article className="shopping-card" onClick={onOpen}>
+    {item.cover_url ? <img src={item.cover_url} alt={item.reference || item.brand}/> : <div className="shopping-photo-placeholder"><Camera/></div>}
+    <div><span className={`shopping-status status-${item.status}`}>{STATUS_NAMES[item.status]}</span><h3>{item.brand}</h3><p>{item.reference || 'Sem referência'}</p><strong>€{item.amount.toFixed(2)}</strong><small>Compra: {item.purchase_date} · Devolver: {item.return_deadline || '—'}{item.days_to_return != null ? ` (${item.days_to_return} d)` : ''}</small>
+      <div className="shopping-card-labels"><span className={item.invoice_sent ? 'done' : 'warning'}>{item.invoice_sent ? 'Fatura enviada' : 'Fatura por enviar'}</span><span className={item.credit_note_sent ? 'done' : 'danger'}>{item.credit_note_sent ? 'Nota crédito enviada' : 'Nota crédito pendente'}</span></div>
+      <div className="shopping-actions" onClick={e => e.stopPropagation()}><button title="Devolvida" onClick={() => onUpdate({ status: 'returned' })}><RotateCcw size={15}/></button><button title="Aguardar nota" onClick={() => onUpdate({ status: 'credit_note_pending' })}><FileWarning size={15}/></button><button title="Fechar" onClick={() => onUpdate({ status: 'closed', refund_received: true })}><CheckCircle2 size={15}/></button><button title="Editar" onClick={onOpen}><Pencil size={15}/></button></div>
+    </div>
+  </article>
+}
+
 export function ShoppingPage() {
   const [items, setItems] = useState<ShoppingPurchase[]>([])
   const [developments, setDevelopments] = useState<Development[]>([])
@@ -34,11 +44,16 @@ export function ShoppingPage() {
   const [form, setForm] = useState<Form>(EMPTY_FORM)
   const [reading, setReading] = useState(false)
   const [query, setQuery] = useState('')
+  const [view, setView] = useState<'status' | 'brand'>('brand')
   const load = () => api.get<ShoppingPurchase[]>('/shopping').then(setItems)
   useEffect(() => { void load(); api.get<Development[]>('/developments').then(setDevelopments) }, [])
   const visible = useMemo(() => items.filter(item => `${item.brand} ${item.reference || ''} ${item.invoice_number || ''}`.toLowerCase().includes(query.toLowerCase())), [items, query])
   const urgent = items.filter(item => item.days_to_return != null && item.days_to_return <= 3 && !['returned', 'closed'].includes(item.status)).length
   const deadline = deadlineInfo(form.return_deadline)
+  const columns = useMemo(() => view === 'status'
+    ? STATUS_OPTIONS.map(status => ({ id: status, title: STATUS_NAMES[status], items: visible.filter(item => item.status === status) }))
+    : [...new Set(visible.map(item => item.brand.trim()))].sort().map(brand => ({ id: brand, title: brand, items: visible.filter(item => item.brand.trim() === brand) })),
+  [view, visible])
 
   function openCreate() { setSelected(null); setForm(EMPTY_FORM); setCreating(true) }
   function openEdit(item: ShoppingPurchase) { setSelected(item); setForm(toForm(item)); setCreating(true) }
@@ -60,13 +75,9 @@ export function ShoppingPage() {
 
   return <div className="content-page">
     <div className="page-heading"><div><h1>Shopping e devoluções</h1><p>{items.length} peças · {urgent} devoluções urgentes. Faturas, notas de crédito e reembolsos num só fluxo.</p></div><button className="primary-button" onClick={openCreate}>+ Registar compra</button></div>
+    <div className="phase-tabs"><button className={view === 'brand' ? 'active' : ''} onClick={() => setView('brand')}>Por marca / loja</button><button className={view === 'status' ? 'active' : ''} onClick={() => setView('status')}>Por estado</button></div>
     <div className="filter-bar"><input placeholder="Pesquisar marca, referência ou fatura..." value={query} onChange={e => setQuery(e.target.value)}/></div>
-    <div className="shopping-grid">{visible.map(item => <article className="shopping-card" key={item.id} onClick={() => openEdit(item)}>
-      {item.cover_url ? <img src={item.cover_url} alt={item.reference || item.brand}/> : <div className="shopping-photo-placeholder"><Camera/></div>}
-      <div><span className={`shopping-status status-${item.status}`}>{STATUS_NAMES[item.status]}</span><h3>{item.brand}</h3><p>{item.reference || 'Sem referência'}</p><strong>€{item.amount.toFixed(2)}</strong><small>Compra: {item.purchase_date} · Devolver: {item.return_deadline || '—'}{item.days_to_return != null ? ` (${item.days_to_return} d)` : ''}</small>
-        <div className="shopping-card-labels"><span className={item.invoice_sent ? 'done' : 'warning'}>{item.invoice_sent ? 'Fatura enviada' : 'Fatura por enviar'}</span><span className={item.credit_note_sent ? 'done' : 'danger'}>{item.credit_note_sent ? 'Nota crédito enviada' : 'Nota crédito pendente'}</span></div>
-        <div className="shopping-actions" onClick={e => e.stopPropagation()}><button title="Devolvida" onClick={() => void quickUpdate(item.id, { status: 'returned' })}><RotateCcw size={15}/></button><button title="Aguardar nota" onClick={() => void quickUpdate(item.id, { status: 'credit_note_pending' })}><FileWarning size={15}/></button><button title="Fechar" onClick={() => void quickUpdate(item.id, { status: 'closed', refund_received: true })}><CheckCircle2 size={15}/></button><button title="Editar" onClick={() => openEdit(item)}><Pencil size={15}/></button></div>
-      </div></article>)}</div>
+    <div className="board-scroll shopping-pipeline">{columns.map(column => <section className="board-column shopping-column" key={column.id}><div className="column-header"><strong>{column.title}</strong><span>{column.items.length}</span></div><div className="column-cards">{column.items.map(item => <ShoppingCard key={item.id} item={item} onOpen={() => openEdit(item)} onUpdate={payload => void quickUpdate(item.id, payload)}/>)}</div></section>)}</div>
 
     {creating && <div className="modal-backdrop" onMouseDown={() => setCreating(false)}><form className="create-modal shopping-detail-modal" onSubmit={submit} onMouseDown={e => e.stopPropagation()}>
       <button type="button" className="modal-close" onClick={() => setCreating(false)}><X/></button>
