@@ -4,6 +4,7 @@ sqlalchemy==2.0.36
 psycopg[binary]==3.2.12
 pydantic-settings==2.7.0
 python-multipart==0.0.20
+pillow==11.1.0
 alembic==1.14.0
 PyJWT==2.10.1
 bcrypt==4.2.1

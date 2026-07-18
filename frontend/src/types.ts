@@ -61,6 +61,7 @@ export type FabricRequest = {
   development_code?: string
   requested_at: string
   received_at?: string
+  labels: Label[]
   days_pending?: number
   days_to_receive?: number
   needs_reminder: boolean

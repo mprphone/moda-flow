@@ -27,6 +27,19 @@ DEFAULT_LABELS = [
     ("Reposição", "lilac"),
 ]
 
+# Etiquetas de malha decalcadas do quadro PEDIDO MALHAS do Trello.
+DEFAULT_FABRIC_LABELS = [
+    ("Pedido feito", "sky"),
+    ("Resposta pendente", "yellow"),
+    ("A desenvolver rolo", "peach"),
+    ("Stock disponível", "mint"),
+    ("Sem stock", "pink"),
+    ("Fora de coleção", "pink"),
+    ("Rolo/metros recebido", "mint"),
+    ("Fatura validada", "lilac"),
+    ("Falta pedir forro ao tom", "lilac"),
+]
+
 
 def seed_users_and_labels(db: Session):
     for name, email in DEFAULT_USERS:
@@ -34,7 +47,10 @@ def seed_users_and_labels(db: Session):
             db.add(User(name=name, email=email.lower(), password_hash=hash_password(settings.seed_user_password)))
     for name, tone in DEFAULT_LABELS:
         if not db.scalar(select(Label).where(Label.name == name)):
-            db.add(Label(name=name, tone=tone))
+            db.add(Label(name=name, tone=tone, scope="development"))
+    for name, tone in DEFAULT_FABRIC_LABELS:
+        if not db.scalar(select(Label).where(Label.name == name)):
+            db.add(Label(name=name, tone=tone, scope="fabric"))
     db.commit()
 
 

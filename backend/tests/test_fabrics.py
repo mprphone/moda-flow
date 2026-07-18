@@ -60,3 +60,23 @@ def test_fabric_request_lifecycle(client, db_session):
 
     deleted = client.delete(f"/api/fabric-requests/{body['id']}", headers=headers)
     assert deleted.status_code == 204
+
+
+def test_fabric_labels(client, db_session):
+    headers = auth(client, db_session)
+    label = client.post("/api/labels", json={"name": "Resposta pendente", "tone": "yellow", "scope": "fabric"}, headers=headers)
+    assert label.status_code == 201
+    label_id = label.json()["id"]
+
+    # a etiqueta de malha não aparece na lista de etiquetas de desenvolvimento
+    dev_labels = client.get("/api/labels?scope=development", headers=headers).json()
+    assert all(item["id"] != label_id for item in dev_labels)
+    fabric_labels = client.get("/api/labels?scope=fabric", headers=headers).json()
+    assert any(item["id"] == label_id for item in fabric_labels)
+
+    created = client.post("/api/fabric-requests", json={"reference": "REF 1", "label_ids": [label_id]}, headers=headers)
+    assert created.status_code == 201
+    assert created.json()["labels"][0]["name"] == "Resposta pendente"
+
+    cleared = client.patch(f"/api/fabric-requests/{created.json()['id']}", json={"label_ids": []}, headers=headers)
+    assert cleared.json()["labels"] == []

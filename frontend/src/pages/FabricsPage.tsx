@@ -4,7 +4,7 @@ import { AlertTriangle, Clock3, Scroll, Trash2, X } from 'lucide-react'
 import { api } from '../api/client'
 import { toast } from '../lib/toast'
 import { UploadInput } from '../components/UploadInput'
-import type { Development, FabricRequest, Supplier } from '../types'
+import type { Development, FabricRequest, Label, Supplier } from '../types'
 
 type Response = { statuses: string[]; items: FabricRequest[] }
 
@@ -43,6 +43,7 @@ function FabricCard({ item, onOpen, showStatus }: { item: FabricRequest; onOpen:
           ? <span className={`chip tone-${STATUS_TONES[item.status] || 'lilac'}`}>{FABRIC_STATUS_NAMES[item.status] || item.status}</span>
           : item.supplier_name && <span className="chip tone-lilac">{item.supplier_name}</span>}
         {item.development_code && <span className="chip tone-sky">{item.development_code}</span>}
+        {item.labels.map(label => <span key={label.id} className={`chip tone-${label.tone}`}>{label.name}</span>)}
       </div>
       <div className="card-footer">
         {item.days_pending != null && <span className={item.needs_reminder ? 'eta-risk' : ''}>
@@ -69,8 +70,10 @@ export function FabricsPage() {
   const [data, setData] = useState<Response>({ statuses: [], items: [] })
   const [suppliers, setSuppliers] = useState<Supplier[]>([])
   const [developments, setDevelopments] = useState<Development[]>([])
+  const [labels, setLabels] = useState<Label[]>([])
   const [query, setQuery] = useState('')
   const [supplierFilter, setSupplierFilter] = useState('')
+  const [labelFilter, setLabelFilter] = useState('')
   const [view, setView] = useState<'estado' | 'fornecedor'>('estado')
   const [creating, setCreating] = useState(false)
   const [selected, setSelected] = useState<FabricRequest | null>(null)
@@ -83,14 +86,16 @@ export function FabricsPage() {
     void load()
     api.get<Supplier[]>('/suppliers').then(setSuppliers)
     api.get<Development[]>('/developments').then(setDevelopments)
+    api.get<Label[]>('/labels?scope=fabric').then(setLabels)
   }, [])
 
   const visible = useMemo(() => data.items.filter(item => {
     const text = `${item.reference} ${item.color || ''} ${item.supplier_name || ''} ${item.development_code || ''}`.toLowerCase()
     if (query && !text.includes(query.toLowerCase())) return false
     if (supplierFilter && String(item.supplier_id) !== supplierFilter) return false
+    if (labelFilter && !item.labels.some(label => String(label.id) === labelFilter)) return false
     return true
-  }), [data, query, supplierFilter])
+  }), [data, query, supplierFilter, labelFilter])
 
   // Colunas: por estado (pipeline) ou por fornecedor (como no Trello)
   const columns = useMemo(() => {
@@ -188,7 +193,11 @@ export function FabricsPage() {
         <option value="">Todos os fornecedores</option>
         {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
       </select>}
-      {(query || supplierFilter) && <button className="clear-filters" onClick={() => { setQuery(''); setSupplierFilter('') }}>Limpar</button>}
+      <select value={labelFilter} onChange={e => setLabelFilter(e.target.value)}>
+        <option value="">Todas as etiquetas</option>
+        {labels.map(label => <option key={label.id} value={label.id}>{label.name}</option>)}
+      </select>
+      {(query || supplierFilter || labelFilter) && <button className="clear-filters" onClick={() => { setQuery(''); setSupplierFilter(''); setLabelFilter('') }}>Limpar</button>}
     </div>
     <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
       <div className="board-scroll">
@@ -203,6 +212,17 @@ export function FabricsPage() {
         <p>{[selected.article, selected.composition, selected.grammage ? `${selected.grammage} g` : null, selected.width ? `${selected.width} m` : null].filter(Boolean).join(' · ') || 'Sem ficha da etiqueta'}
           {selected.quantity_meters ? ` — ${selected.quantity_meters} metros` : ''}{selected.price_per_meter ? ` — ${selected.price_per_meter.toFixed(2)} €/mt` : ''}{selected.leadtime ? ` — ${selected.leadtime}` : ''}</p>
         {selected.notes && <p className="fabric-notes">{selected.notes}</p>}
+        <div className="label-row">
+          {labels.map(label => {
+            const on = selected.labels.some(l => l.id === label.id)
+            return <button
+              key={label.id}
+              type="button"
+              className={`chip tone-${label.tone} label-toggle ${on ? 'on' : ''}`}
+              onClick={() => void patchItem(selected.id, { label_ids: on ? selected.labels.filter(l => l.id !== label.id).map(l => l.id) : [...selected.labels.map(l => l.id), label.id] })}
+            >{label.name}</button>
+          })}
+        </div>
         <label>Estado<select value={selected.status} onChange={e => void patchItem(selected.id, { status: e.target.value }, 'Estado atualizado.')}>
           {data.statuses.map(status => <option key={status} value={status}>{FABRIC_STATUS_NAMES[status] || status}</option>)}
         </select></label>

@@ -28,6 +28,7 @@ def serialize_request(item: FabricRequest) -> dict:
         "development_code": item.development.code if item.development else None,
         "requested_at": item.requested_at,
         "received_at": item.received_at,
+        "labels": [{"id": label.id, "name": label.name, "tone": label.tone} for label in item.labels],
         "days_pending": days_pending,
         "days_to_receive": days_to_receive,
         "needs_reminder": bool(days_pending is not None and days_pending >= REMINDER_AFTER_DAYS),

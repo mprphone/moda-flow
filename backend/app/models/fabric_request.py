@@ -4,6 +4,7 @@ from sqlalchemy import Date, DateTime, ForeignKey, Integer, Numeric, String, Tex
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.core.db import Base
 from app.core.timeutil import today, utcnow
+from app.models.label import fabric_labels
 
 FABRIC_STATUSES = [
     "pedido",
@@ -38,3 +39,4 @@ class FabricRequest(Base):
 
     supplier = relationship("Supplier")
     development = relationship("Development")
+    labels = relationship("Label", secondary=fabric_labels, back_populates="fabrics")
