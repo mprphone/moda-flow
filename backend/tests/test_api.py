@@ -44,10 +44,14 @@ def test_development_lifecycle(client, db_session):
 
     created = client.post("/api/developments", json={
         "code": "TEST_001", "title": "Malha teste", "client_id": client_id, "owner_name": "Isabel Fernandes",
+        "request_source": "whatsapp", "request_group": "Zara julho", "requested_quantity": 1200, "request_notes": "Cliente enviou duas inspirações",
     }, headers=headers)
     assert created.status_code == 201, created.text
     dev_id = created.json()["id"]
     assert created.json()["current_stage"] == "novo"
+    assert created.json()["request_source"] == "whatsapp"
+    assert created.json()["request_group"] == "Zara julho"
+    assert created.json()["requested_quantity"] == 1200
 
     moved = client.post(f"/api/developments/{dev_id}/move", json={"to_stage": "ficha_tecnica"}, headers=headers)
     assert moved.status_code == 200
@@ -105,23 +109,31 @@ def test_move_preserves_waiting_reason_in_history(client, db_session):
     assert any(event["note"] and "Falta validar medidas" in event["note"] for event in closed)
 
 
-def test_proposal_flow_approve_and_reject(client, db_session):
+def test_real_request_sample_and_client_decision_flow(client, db_session):
     make_user(db_session)
     headers = login(client)
     db_session.add(Client(name="Mango"))
     db_session.commit()
     client_id = db_session.query(Client).first().id
 
-    # proposta aprovada: desenho -> proposta -> amostra fisica
+    # pedido -> referências/distribuição -> ficha técnica; ainda não existe aprovação do cliente
     dev_id = client.post("/api/developments", json={
         "code": "PROP_001", "title": "Vestido linho", "client_id": client_id, "owner_name": "Isabel Fernandes",
     }, headers=headers).json()["id"]
     assert client.post(f"/api/developments/{dev_id}/move", json={"to_stage": "proposta_cliente"}, headers=headers).json()["current_stage"] == "proposta_cliente"
-    approved = client.post(f"/api/developments/{dev_id}/move", json={"to_stage": "ficha_tecnica"}, headers=headers).json()
-    assert approved["current_stage"] == "ficha_tecnica"
-    assert approved["status"] == "active"
+    distributed = client.post(f"/api/developments/{dev_id}/move", json={"to_stage": "ficha_tecnica"}, headers=headers).json()
+    assert distributed["current_stage"] == "ficha_tecnica"
+    assert distributed["status"] == "active"
 
-    # proposta reprovada: sai do quadro e nao aparece nas prioridades do dia
+    # aprovação acontece apenas depois da amostra ser enviada e entrar em resposta do cliente
+    sent = client.post(f"/api/developments/{dev_id}/move", json={"to_stage": "envio_cliente"}, headers=headers).json()
+    assert sent["status"] == "active"
+    waiting = client.post(f"/api/developments/{dev_id}/move", json={"to_stage": "resposta_cliente"}, headers=headers).json()
+    assert waiting["status"] == "waiting_client"
+    approved = client.post(f"/api/developments/{dev_id}/move", json={"to_stage": "aprovado"}, headers=headers).json()
+    assert approved["status"] == "completed"
+
+    # amostra reprovada: sai do quadro e não aparece nas prioridades do dia
     rej_id = client.post("/api/developments", json={
         "code": "PROP_002", "title": "Casaco oversize", "client_id": client_id, "owner_name": "Isabel Fernandes",
     }, headers=headers).json()["id"]

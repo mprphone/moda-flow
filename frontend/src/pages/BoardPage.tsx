@@ -14,13 +14,13 @@ type View = 'board' | 'client' | 'rejected'
 
 const BOARD_META: Record<Board, { title: string; subtitle: string; boardTab: string }> = {
   portfolio: {
-    title: 'Portefólio & Modelos',
-    subtitle: 'Desenho e proposta ao cliente. Quando o cliente aprova, o cartão passa sozinho para o desenvolvimento de amostras.',
-    boardTab: 'Propostas',
+    title: 'Pedidos de clientes & Referências',
+    subtitle: 'Pedidos recebidos, fotografias de inspiração, referências criadas e distribuição do trabalho pelas designers.',
+    boardTab: 'Pedidos',
   },
   samples: {
     title: 'Desenvolvimento de amostras',
-    subtitle: 'A amostra física: ficha técnica, malha, tingimento, modelagem, corte, confeção e envio ao cliente.',
+    subtitle: 'Da ficha técnica à amostra final: materiais, serviços, modelagem, confeção, envio e decisão do cliente.',
     boardTab: 'Amostras',
   },
 }
@@ -48,7 +48,7 @@ export function BoardPage({ board, refreshKey }: { board: Board; refreshKey: num
   const isPhaseOne = (stage: string) => (PHASE_ONE_IDS as readonly string[]).includes(stage)
 
   const filtered = useMemo(() => items.filter(item => {
-    const text = `${item.code} ${item.title} ${item.owner_name} ${item.client_name}`.toLowerCase()
+    const text = `${item.code} ${item.title} ${item.request_group || ''} ${item.owner_name} ${item.client_name}`.toLowerCase()
     if (query && !text.includes(query.toLowerCase())) return false
     if (clientFilter && item.client_name !== clientFilter) return false
     if (riskFilter && item.risk !== riskFilter) return false
@@ -58,11 +58,11 @@ export function BoardPage({ board, refreshKey }: { board: Board; refreshKey: num
     return true
   }), [items, query, clientFilter, riskFilter, labelFilter, assigneeFilter, taskFilter])
 
-  // Arquivo: reprovados, cancelados e amostras enviadas (concluídas fora da coluna Aprovado)
+  // Arquivo: pedidos reprovados ou cancelados. Os aprovados permanecem visíveis antes da produção.
   const isArchived = (item: Development) =>
     item.status === 'rejected' || item.status === 'cancelled' || (item.status === 'completed' && item.current_stage !== 'aprovado')
   const rejected = useMemo(() => filtered.filter(isArchived), [filtered])
-  // Cada quadro só mostra os seus modelos ativos: portfolio = fase 1, amostras = fase 2
+  // Cada quadro mostra o seu percurso: pedidos/distribuição na entrada e amostras a partir da ficha técnica.
   const active = useMemo(() => filtered.filter(item =>
     !isArchived(item) && (board === 'portfolio' ? isPhaseOne(item.current_stage) : !isPhaseOne(item.current_stage))),
     [filtered, board])
@@ -77,15 +77,15 @@ export function BoardPage({ board, refreshKey }: { board: Board; refreshKey: num
     [columns, active, byClient],
   )
 
-  async function move(id: number, stage: string) {
+  async function move(id: number, stage: string, note?: string) {
     const previous = items
     setItems(current => current.map(item => item.id === id ? { ...item, current_stage: stage } : item))
     try {
-      const updated = await api.post<Development>(`/developments/${id}/move`, { to_stage: stage })
+      const updated = await api.post<Development>(`/developments/${id}/move`, { to_stage: stage, note: note || null })
       setItems(current => current.map(item => item.id === id ? updated : item))
       setSelected(current => current?.id === id ? updated : current)
       if (board === 'portfolio' && stage === 'ficha_tecnica') {
-        toast('success', 'Proposta aprovada — passou para o Desenvolvimento de amostras.')
+        toast('success', 'Referência distribuída — passou para a ficha técnica.')
       }
     } catch {
       setItems(previous)
@@ -102,7 +102,7 @@ export function BoardPage({ board, refreshKey }: { board: Board; refreshKey: num
   async function rejectItem(id: number, reason?: string) {
     await updateItem(id, { status: 'rejected', waiting_reason: reason || null })
     setSelected(null)
-    toast('success', 'Proposta arquivada como reprovada.')
+    toast('success', 'Amostra arquivada como reprovada pelo cliente.')
   }
 
   async function reactivate(id: number) {
@@ -180,8 +180,8 @@ export function BoardPage({ board, refreshKey }: { board: Board; refreshKey: num
       <select value={taskFilter} onChange={e => setTaskFilter(e.target.value)}>
         <option value="">Todas as pendências</option>
         <option value="ficha">Ficha técnica</option><option value="malha">Malha</option><option value="tingimento">Tingimento</option>
-        <option value="grafico_bordado">Gráfico/bordado</option><option value="acessorios">Acessórios</option>
-        <option value="peca_shopping">Peça shopping</option><option value="envio_cliente">Envio ao cliente</option><option value="resposta_cliente">Resposta do cliente</option>
+        <option value="grafico_bordado">Gráfico/bordado</option><option value="bordado">Bordado</option><option value="aplicacao">Aplicações</option><option value="acessorios">Acessórios</option>
+        <option value="shopping_modelagem">Shopping para modelagem</option><option value="envio_cliente">Envio ao cliente</option><option value="resposta_cliente">Resposta do cliente</option>
       </select>
       {(query || clientFilter || riskFilter || labelFilter || assigneeFilter || taskFilter) && <button className="clear-filters" onClick={() => { setQuery(''); setClientFilter(''); setRiskFilter(''); setLabelFilter(''); setAssigneeFilter(''); setTaskFilter('') }}>Limpar</button>}
     </div>
@@ -212,7 +212,7 @@ export function BoardPage({ board, refreshKey }: { board: Board; refreshKey: num
       item={selected}
       labels={labels}
       onClose={() => setSelected(null)}
-      onMove={(stage) => void move(selected.id, stage)}
+      onMove={(stage, note) => void move(selected.id, stage, note)}
       onStatus={(status, reason) => void updateItem(selected.id, { status, waiting_reason: reason || null })}
       onReject={(reason) => void rejectItem(selected.id, reason)}
       onLabels={(labelIds) => void updateItem(selected.id, { label_ids: labelIds })}

@@ -2,37 +2,37 @@ from enum import StrEnum
 
 
 class Stage(StrEnum):
+    # Os dois valores iniciais são mantidos por compatibilidade com os dados existentes.
     NOVO = "novo"
     PROPOSTA_CLIENTE = "proposta_cliente"
     FICHA_TECNICA = "ficha_tecnica"
     DESENVOLVIMENTO_MALHA = "desenvolvimento_malha"
-    TINGIMENTO = "tingimento"
     MODELAGEM = "modelagem"
     CORTE = "corte"
     CONFECAO = "confecao"
-    ACESSORIOS = "acessorios"
+    FINALIZACAO = "finalizacao"
     ENVIO_CLIENTE = "envio_cliente"
+    RESPOSTA_CLIENTE = "resposta_cliente"
+    RETIFICACOES = "retificacoes"
     APROVADO = "aprovado"
 
 
 PIPELINE = [stage.value for stage in Stage]
-
-# Fase 1: proposta/desenho (o cliente ainda não aprovou — muitos morrem aqui).
-# Fase 2: amostra física (só depois de o cliente aprovar o desenho).
 PHASE_ONE = [Stage.NOVO.value, Stage.PROPOSTA_CLIENTE.value]
 PHASE_TWO = [stage for stage in PIPELINE if stage not in PHASE_ONE]
 
 STAGE_LABELS = {
-    Stage.NOVO.value: "Desenho",
-    Stage.PROPOSTA_CLIENTE.value: "Proposta cliente",
+    Stage.NOVO.value: "Pedido recebido",
+    Stage.PROPOSTA_CLIENTE.value: "Referências e distribuição",
     Stage.FICHA_TECNICA.value: "Ficha técnica",
-    Stage.DESENVOLVIMENTO_MALHA.value: "Desenv. malha",
-    Stage.TINGIMENTO.value: "Tingimento",
+    Stage.DESENVOLVIMENTO_MALHA.value: "Preparação materiais",
     Stage.MODELAGEM.value: "Modelagem",
     Stage.CORTE.value: "Corte",
     Stage.CONFECAO.value: "Confeção",
-    Stage.ACESSORIOS.value: "Acessórios",
+    Stage.FINALIZACAO.value: "Finalização da amostra",
     Stage.ENVIO_CLIENTE.value: "Envio cliente",
+    Stage.RESPOSTA_CLIENTE.value: "Resposta cliente",
+    Stage.RETIFICACOES.value: "Retificações",
     Stage.APROVADO.value: "Aprovado",
 }
 

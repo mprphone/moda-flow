@@ -10,6 +10,10 @@ class DevelopmentCreate(ORMModel):
     owner_name: str
     cover_url: str | None = None
     due_date: date | None = None
+    request_source: str | None = None
+    request_group: str | None = None
+    requested_quantity: int | None = None
+    request_notes: str | None = None
 
 
 class DevelopmentMove(ORMModel):
@@ -30,6 +34,10 @@ class QuickUpdate(ORMModel):
     owner_name: str | None = None
     cover_url: str | None = None
     images: list[str] | None = None
+    request_source: str | None = None
+    request_group: str | None = None
+    requested_quantity: int | None = None
+    request_notes: str | None = None
     label_ids: list[int] | None = None
 
 

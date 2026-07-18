@@ -17,6 +17,10 @@ export type Development = {
   owner_name: string
   cover_url?: string
   images: string[]
+  request_source?: string
+  request_group?: string
+  requested_quantity?: number
+  request_notes?: string
   current_stage: string
   status: string
   waiting_reason?: string

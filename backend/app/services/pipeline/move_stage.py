@@ -19,6 +19,10 @@ def move_development(db: Session, development_id: int, payload: DevelopmentMove)
         raise HTTPException(status_code=404, detail="Desenvolvimento não encontrado")
     if payload.to_stage not in PIPELINE:
         raise HTTPException(status_code=422, detail="Fase inválida")
+    if payload.to_stage == Stage.APROVADO.value and development.current_stage != Stage.RESPOSTA_CLIENTE.value:
+        raise HTTPException(status_code=422, detail="A aprovação só pode ser registada depois do envio e da resposta do cliente.")
+    if payload.to_stage == Stage.RETIFICACOES.value and development.current_stage != Stage.RESPOSTA_CLIENTE.value:
+        raise HTTPException(status_code=422, detail="As retificações devem partir de uma resposta do cliente.")
 
     now = utcnow()
     # Preserva no histórico o estado de espera/bloqueio que existia antes do movimento.
@@ -58,7 +62,12 @@ def move_development(db: Session, development_id: int, payload: DevelopmentMove)
         ))
     development.current_stage = payload.to_stage
     development.updated_at = now
-    development.status = DevelopmentStatus.COMPLETED.value if payload.to_stage == Stage.APROVADO.value else DevelopmentStatus.ACTIVE.value
+    if payload.to_stage == Stage.APROVADO.value:
+        development.status = DevelopmentStatus.COMPLETED.value
+    elif payload.to_stage == Stage.RESPOSTA_CLIENTE.value:
+        development.status = DevelopmentStatus.WAITING_CLIENT.value
+    else:
+        development.status = DevelopmentStatus.ACTIVE.value
     development.waiting_reason = None
     db.commit()
     db.refresh(development)

@@ -171,8 +171,11 @@ def post_production(payload: ProductionCreate, db: Session = Depends(get_db)):
     if status not in PRODUCTION_STAGES:
         raise HTTPException(status_code=422, detail="Estado de produÃ§Ã£o invÃ¡lido")
     if payload.development_id:
-        if not db.get(Development, payload.development_id):
+        development = db.get(Development, payload.development_id)
+        if not development:
             raise HTTPException(status_code=404, detail="Desenvolvimento nÃ£o encontrado")
+        if development.current_stage != "aprovado":
+            raise HTTPException(status_code=422, detail="A produÃ§Ã£o industrial sÃ³ pode ser criada depois da aprovaÃ§Ã£o do cliente.")
     elif not (payload.title and payload.client_id):
         raise HTTPException(status_code=422, detail="Indique um desenvolvimento, ou tÃ­tulo + cliente.")
     if payload.client_id and not db.get(Client, payload.client_id):
@@ -195,6 +198,12 @@ def patch_production(production_id: int, payload: ProductionUpdate, db: Session 
     new_status = data.get("status")
     if new_status and new_status not in PRODUCTION_STAGES:
         raise HTTPException(status_code=422, detail="Estado de produÃ§Ã£o invÃ¡lido")
+    if data.get("development_id"):
+        development = db.get(Development, data["development_id"])
+        if not development:
+            raise HTTPException(status_code=404, detail="Desenvolvimento nÃ£o encontrado")
+        if development.current_stage != "aprovado":
+            raise HTTPException(status_code=422, detail="SÃ³ pode ligar uma produÃ§Ã£o a uma amostra aprovada pelo cliente.")
     # Ao mudar de fase, fecha o evento ativo e abre um novo â€” regista o tempo em cada fase.
     if new_status and new_status != item.status:
         now = utcnow()

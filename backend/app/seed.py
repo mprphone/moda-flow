@@ -82,9 +82,9 @@ def seed_database(db: Session):
     db.flush()
 
     specs = [
-        ("JF_B001_277", "Pull Woman — riscas", clients[0], "Isabel Fernandes", Stage.TINGIMENTO.value, DevelopmentStatus.WAITING_SUPPLIER.value, 8, 0),
+        ("JF_B001_277", "Pull Woman — riscas", clients[0], "Isabel Fernandes", Stage.DESENVOLVIMENTO_MALHA.value, DevelopmentStatus.WAITING_SUPPLIER.value, 8, 0),
         ("IF_B002_316", "Twinset preto", clients[1], "Joana Ferreira", Stage.DESENVOLVIMENTO_MALHA.value, DevelopmentStatus.ACTIVE.value, 4, 1),
-        ("JF_B008_002", "Renda turquesa", clients[1], "Isabel Fernandes", Stage.ACESSORIOS.value, DevelopmentStatus.ACTIVE.value, 2, 2),
+        ("JF_B008_002", "Renda turquesa", clients[1], "Isabel Fernandes", Stage.FINALIZACAO.value, DevelopmentStatus.ACTIVE.value, 2, 2),
         ("JJ_B001_033", "T-shirt gola contrastante", clients[2], "Beatriz Pinto", Stage.ENVIO_CLIENTE.value, DevelopmentStatus.WAITING_CLIENT.value, 5, 3),
         ("RJ_B003_015", "Sweat hoodie bordada", clients[3], "Carlos Santos", Stage.APROVADO.value, DevelopmentStatus.COMPLETED.value, 1, 0),
         ("BP_B002_027", "Saia terracota", clients[0], "Beatriz Pinto", Stage.MODELAGEM.value, DevelopmentStatus.BLOCKED.value, 6, 1),
@@ -104,7 +104,7 @@ def seed_database(db: Session):
         )
         db.add(item)
         db.flush()
-        supplier_id = suppliers[1].id if stage == Stage.TINGIMENTO.value else suppliers[0].id if stage == Stage.DESENVOLVIMENTO_MALHA.value else None
+        supplier_id = suppliers[0].id if stage == Stage.DESENVOLVIMENTO_MALHA.value else None
         db.add(StageEvent(
             development_id=item.id,
             stage=stage,

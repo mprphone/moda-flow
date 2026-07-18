@@ -61,7 +61,13 @@ def test_production_cross_links(client, db_session):
     client.post("/api/fabric-requests", json={"reference": "MALHA X", "development_id": dev_id}, headers=headers)
     prod_id = client.post("/api/productions", json={"title": "Camisola prod", "client_id": client_id, "quantity": 300}, headers=headers).json()["id"]
 
-    # ligar a produção ao desenvolvimento
+    # não permite ligar à produção antes da aprovação do cliente
+    premature = client.patch(f"/api/productions/{prod_id}", json={"development_id": dev_id}, headers=headers)
+    assert premature.status_code == 422
+    client.post(f"/api/developments/{dev_id}/move", json={"to_stage": "resposta_cliente"}, headers=headers)
+    client.post(f"/api/developments/{dev_id}/move", json={"to_stage": "aprovado"}, headers=headers)
+
+    # depois da aprovação, liga a produção ao desenvolvimento
     linked = client.patch(f"/api/productions/{prod_id}", json={"development_id": dev_id}, headers=headers).json()
     assert linked["development"]["code"] == "CR_001"
     # a produção passa a ver as malhas do desenvolvimento

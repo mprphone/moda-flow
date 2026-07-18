@@ -1,4 +1,4 @@
-import { Clock3, ListChecks, MessageCircle, Sparkles } from 'lucide-react'
+import { Clock3, ListChecks, MessageCircle, Sparkles, UserRound } from 'lucide-react'
 import { useDraggable } from '@dnd-kit/core'
 import type { Development } from '../types'
 import { STAGE_LABELS } from '../constants/pipeline'
@@ -11,6 +11,7 @@ export function DevelopmentCard({ item, onOpen, showStage }: { item: Development
     <div className="card-body">
       <div className="card-title">{item.code}</div>
       {item.title !== item.code && <div className="card-subtitle">{item.title}</div>}
+      {item.request_group && <div className="card-request-group">Pedido: {item.request_group}</div>}
       <div className="chips">
         {showStage
           ? <span className="chip tone-sky">{STAGE_LABELS[item.current_stage] || item.current_stage}</span>
@@ -19,6 +20,7 @@ export function DevelopmentCard({ item, onOpen, showStage }: { item: Development
         {item.labels.map(label => <span key={label.id} className={`chip tone-${label.tone}`}>{label.name}</span>)}
       </div>
       {item.waiting_reason && <div className="waiting-reason">{item.waiting_reason}</div>}
+      <div className="card-assignment"><UserRound size={13}/><span>{item.owner_name || 'Por distribuir'}</span>{item.requested_quantity && <em>{item.requested_quantity} un.</em>}</div>
       <div className="next-action"><Sparkles size={14}/>{item.next_action}</div>
       <div className="card-footer">
         <span><Clock3 size={14}/>{item.days_in_stage} d</span>

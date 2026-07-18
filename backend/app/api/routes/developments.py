@@ -20,7 +20,10 @@ from app.services.pipeline.move_stage import move_development
 
 router = APIRouter()
 
-TASK_KINDS = {"ficha", "malha", "tingimento", "grafico_bordado", "acessorios", "peca_shopping", "envio_cliente", "resposta_cliente"}
+TASK_KINDS = {
+    "ficha", "malha", "tingimento", "grafico_bordado", "bordado", "aplicacao",
+    "acessorios", "peca_shopping", "shopping_modelagem", "envio_cliente", "resposta_cliente",
+}
 TASK_STATUSES = {"pending", "in_progress", "waiting", "done", "cancelled"}
 ASSIGNEE_ROLES = {"principal", "parceria", "fitting", "qualidade", "grafico"}
 

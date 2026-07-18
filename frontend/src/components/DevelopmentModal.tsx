@@ -28,7 +28,9 @@ const STATUS_BADGE: Record<string, { label: string; tone: string }> = {
 
 const TASK_NAMES: Record<string, string> = {
   ficha: 'Ficha técnica', malha: 'Malha', tingimento: 'Tingimento', grafico_bordado: 'Gráfico/bordado',
-  acessorios: 'Acessórios', peca_shopping: 'Peça shopping', envio_cliente: 'Envio ao cliente', resposta_cliente: 'Resposta do cliente',
+  bordado: 'Bordado', aplicacao: 'Aplicações', acessorios: 'Acessórios',
+  peca_shopping: 'Shopping para modelagem', shopping_modelagem: 'Shopping para modelagem',
+  envio_cliente: 'Envio ao cliente', resposta_cliente: 'Resposta do cliente',
 }
 const TASK_STATUS_NAMES: Record<string, string> = { pending: 'Pendente', in_progress: 'Em curso', waiting: 'A aguardar', done: 'Concluída', cancelled: 'Cancelada' }
 const ROLE_NAMES: Record<string, string> = { principal: 'Principal', parceria: 'Parceria', fitting: 'Fitting', qualidade: 'Qualidade', grafico: 'Gráfico' }
@@ -37,7 +39,7 @@ type Props = {
   item: Development
   labels: Label[]
   onClose: () => void
-  onMove: (stage: string) => void
+  onMove: (stage: string, note?: string) => void
   onStatus: (status: string, reason?: string) => void
   onReject: (reason?: string) => void
   onLabels: (labelIds: number[]) => void
@@ -203,10 +205,10 @@ export function DevelopmentModal({ item, labels, onClose, onMove, onStatus, onRe
 
   const completedStages = detail ? detail.stage_history.filter(e => e.ended_at).length : 0
   const totalDays = detail ? Math.round(detail.stage_history.reduce((sum, e) => sum + (e.days || 0), 0)) : 0
-  // Na fase de proposta só se mostram as fases dessa etapa; malhas/produção ainda não se aplicam.
-  const inProposal = (PHASE_ONE_IDS as readonly string[]).includes(item.current_stage)
-  const traceStages = (inProposal ? PHASE_ONE : PIPELINE) as unknown as [string, string][]
-  const showFabrics = !inProposal || (detail?.fabric_requests.length ?? 0) > 0
+  // Na entrada mostram-se apenas o pedido e a distribuição; a ficha técnica inicia o trabalho operacional.
+  const inIntake = (PHASE_ONE_IDS as readonly string[]).includes(item.current_stage)
+  const traceStages = (inIntake ? PHASE_ONE : PIPELINE) as unknown as [string, string][]
+  const showFabrics = !inIntake || (detail?.fabric_requests.length ?? 0) > 0
   const showProductions = (detail?.productions.length ?? 0) > 0
 
   const photos = [...new Set([...(detail?.images || item.images || []), ...(item.cover_url ? [item.cover_url] : [])])]
@@ -237,6 +239,12 @@ export function DevelopmentModal({ item, labels, onClose, onMove, onStatus, onRe
           <span><CalendarDays size={16}/>{item.due_date || 'Sem prazo'}</span>
           {detail?.estimated_completion && <span className={detail.eta_at_risk ? 'eta-risk' : ''}><TrendingUp size={16}/>Previsão: {detail.estimated_completion}{detail.eta_at_risk ? ' ⚠ depois do prazo' : ''}</span>}
         </div>
+        {(item.request_source || item.request_group || item.requested_quantity || item.request_notes) && <div className="request-brief">
+          {item.request_group && <div><small>PEDIDO / CAMPANHA</small><strong>{item.request_group}</strong></div>}
+          <div><small>ORIGEM DO PEDIDO</small><strong>{{ whatsapp: 'WhatsApp', email: 'Email', reuniao: 'Reunião', telefone: 'Telefone', outro: 'Outro' }[item.request_source || ''] || item.request_source || '—'}</strong></div>
+          <div><small>QUANTIDADE PRETENDIDA</small><strong>{item.requested_quantity ? `${item.requested_quantity} unidades` : 'Por definir'}</strong></div>
+          {item.request_notes && <p><small>BRIEFING DO CLIENTE</small>{item.request_notes}</p>}
+        </div>}
         {editingOwner && designers.length > 0 && <div className="designer-suggestions">
           Designers: {designers.map(name => <button key={name} type="button" className="designer-chip" onClick={() => addDesigner(name)}>+ {name}</button>)}
           <span className="designer-hint">(clique para juntar em parceria)</span>
@@ -263,7 +271,7 @@ export function DevelopmentModal({ item, labels, onClose, onMove, onStatus, onRe
         </section>
         <section className="history-section parallel-work">
           <div className="section-title"><ListChecks size={18}/><strong>Pendências paralelas</strong></div>
-          <p className="section-help">Estas tarefas podem avançar em simultâneo, sem obrigar o modelo a mudar de fase.</p>
+          <p className="section-help">A partir da ficha técnica, malhas, acessórios, tinturaria, shopping, bordados e aplicações podem avançar em simultâneo.</p>
           <div className="parallel-task-list">
             {(detail?.tasks || item.tasks).map(task => <div className={`parallel-task ${task.status === 'done' ? 'is-done' : ''}`} key={task.id}>
               <div><strong>{TASK_NAMES[task.kind] || task.kind}</strong><span>{task.note || 'Sem nota'}{task.responsible_name ? ` · ${task.responsible_name}` : ''}</span></div>
@@ -287,15 +295,22 @@ export function DevelopmentModal({ item, labels, onClose, onMove, onStatus, onRe
         </section>
         <div className="compact-pipeline">{traceStages.map(([id,label]) => {
           const i = PIPELINE.findIndex(([pid]) => pid === id)
-          return <button key={id} className={i < index ? 'done' : i === index ? 'active' : ''} onClick={() => onMove(id)}><span>{i+1}</span>{label}</button>
+          return <button key={id} disabled={i >= index} className={i < index ? 'done' : i === index ? 'active' : ''} onClick={() => onMove(id)}><span>{i+1}</span>{label}</button>
         })}</div>
         <section className="smart-panel"><div><Sparkles size={20}/><strong>Assistente do desenvolvimento</strong></div>{item.suggestions.length ? item.suggestions.map(text => <p key={text}>{text}</p>) : <p>O desenvolvimento está dentro do ritmo normal.</p>}</section>
         <section className="current-stage"><div className="section-title"><Layers3 size={18}/><strong>Fase atual</strong></div><div className="stage-focus"><div><small>ONDE ESTÁ</small><strong>{STAGE_LABELS[item.current_stage]}</strong></div><div><small>PRÓXIMA AÇÃO</small><strong>{item.next_action}</strong></div><div><small>MOTIVO DE ESPERA</small><strong>{item.waiting_reason || 'Sem bloqueios registados'}</strong></div></div></section>
         {item.current_stage === 'proposta_cliente'
-          ? <div className="advance-row">
-              <button className="advance-btn ok" onClick={() => onMove('ficha_tecnica')}>✔ Cliente aprovou — iniciar desenvolvimento de amostras</button>
-              <button className="advance-btn no" onClick={() => onReject(window.prompt('Motivo da reprovação (opcional):') || undefined)}>✖ Cliente reprovou</button>
-            </div>
+          ? <button className="advance-btn" onClick={() => onMove('ficha_tecnica')}>Distribuição concluída — criar ficha técnica <ArrowRight size={17}/></button>
+          : item.current_stage === 'envio_cliente'
+            ? <button className="advance-btn" onClick={() => onMove('resposta_cliente', 'Amostra enviada ao cliente; aguarda resposta.')}>Amostra enviada — aguardar resposta do cliente <ArrowRight size={17}/></button>
+          : item.current_stage === 'resposta_cliente'
+            ? <div className="advance-row customer-decision">
+                <button className="advance-btn ok" onClick={() => onMove('aprovado', 'Cliente aprovou a amostra.')}>✔ Cliente aprovou</button>
+                <button className="advance-btn" onClick={() => onMove('retificacoes', window.prompt('Que retificações pediu o cliente?') || 'Cliente pediu retificações.')}>↺ Pediu retificações</button>
+                <button className="advance-btn no" onClick={() => onReject(window.prompt('Motivo da reprovação (opcional):') || undefined)}>✖ Cliente reprovou</button>
+              </div>
+          : item.current_stage === 'retificacoes'
+            ? <button className="advance-btn" onClick={() => onMove('envio_cliente', 'Retificações concluídas; nova versão pronta para envio.')}>Retificações concluídas — reenviar ao cliente <ArrowRight size={17}/></button>
           : item.current_stage === 'aprovado'
             ? <button className="advance-btn" onClick={createProduction}>Criar produção industrial <Factory size={17}/></button>
             : <button className="advance-btn" onClick={() => onMove(next[0])}>Concluir “{STAGE_LABELS[item.current_stage]}” e avançar para “{next[1]}” <ArrowRight size={17}/></button>}
@@ -315,7 +330,7 @@ export function DevelopmentModal({ item, labels, onClose, onMove, onStatus, onRe
           <div className="journey-title"><Route size={19}/><strong>Percurso do modelo — do desenho à produção</strong></div>
 
           <div className="journey-block">
-            <div className="journey-head"><span className="journey-badge dev"><Layers3 size={14}/></span>{inProposal ? '1 · Proposta ao cliente' : '1 · Desenvolvimento da amostra'}</div>
+          <div className="journey-head"><span className="journey-badge dev"><Layers3 size={14}/></span>{inIntake ? '1 · Entrada do pedido e distribuição' : '1 · Desenvolvimento da amostra'}</div>
             {detail && <StageTrace
               heading=""
               stages={traceStages}
@@ -324,7 +339,7 @@ export function DevelopmentModal({ item, labels, onClose, onMove, onStatus, onRe
               summary={<>
                 <span>{completedStages} etapas concluídas</span>
                 <span>{totalDays} dias no total</span>
-                {!inProposal && detail.estimated_completion && <span className={detail.eta_at_risk ? 'eta-risk' : ''}>Previsão: {detail.estimated_completion}</span>}
+                {!inIntake && detail.estimated_completion && <span className={detail.eta_at_risk ? 'eta-risk' : ''}>Previsão: {detail.estimated_completion}</span>}
               </>}
             />}
           </div>

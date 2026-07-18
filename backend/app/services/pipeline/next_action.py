@@ -16,18 +16,18 @@ def get_next_action(development: Development) -> str:
     active_task = next((task for task in tasks if task.status in {"pending", "in_progress"}), None)
     if active_task:
         return f"Tratar pendência: {active_task.kind.replace('_', ' ')}"
-
     actions = {
-        Stage.NOVO.value: "Concluir desenho e enviar proposta ao cliente",
-        Stage.PROPOSTA_CLIENTE.value: "Registar resposta do cliente à proposta",
-        Stage.FICHA_TECNICA.value: "Concluir ficha técnica",
-        Stage.DESENVOLVIMENTO_MALHA.value: "Confirmar malha ou pedir desenvolvimento",
-        Stage.TINGIMENTO.value: "Confirmar cor e prazo de tingimento",
+        Stage.NOVO.value: "Registar pedido, fotografias e referências",
+        Stage.PROPOSTA_CLIENTE.value: "Distribuir referências pelas designers",
+        Stage.FICHA_TECNICA.value: "Concluir a ficha técnica",
+        Stage.DESENVOLVIMENTO_MALHA.value: "Tratar materiais e serviços em paralelo",
         Stage.MODELAGEM.value: "Validar moldes",
         Stage.CORTE.value: "Concluir corte piloto",
-        Stage.CONFECAO.value: "Terminar amostra piloto",
-        Stage.ACESSORIOS.value: "Aplicar e validar acessórios",
-        Stage.ENVIO_CLIENTE.value: "Registar resposta do cliente",
-        Stage.APROVADO.value: "Criar produção",
+        Stage.CONFECAO.value: "Terminar a confeção da amostra",
+        Stage.FINALIZACAO.value: "Rever e finalizar a amostra",
+        Stage.ENVIO_CLIENTE.value: "Enviar a amostra ao cliente",
+        Stage.RESPOSTA_CLIENTE.value: "Registar aprovação, retificação ou reprovação",
+        Stage.RETIFICACOES.value: "Executar alterações pedidas pelo cliente",
+        Stage.APROVADO.value: "Criar produção industrial",
     }
     return actions.get(development.current_stage, "Rever desenvolvimento")
