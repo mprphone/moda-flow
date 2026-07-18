@@ -1,4 +1,4 @@
-import { LayoutDashboard, Columns3, Shirt, Factory, ShoppingBag, UsersRound, UserCog, Scroll, Sparkles, Link2, type LucideIcon } from 'lucide-react'
+import { LayoutDashboard, Columns3, Shirt, Factory, ShoppingBag, UsersRound, UserCog, Scroll, Sparkles, Link2, BarChart3, type LucideIcon } from 'lucide-react'
 
 type Props = { active: string; onChange: (value: string) => void }
 
@@ -11,6 +11,7 @@ const items: Array<[string, string, LucideIcon]> = [
   ['reconciliation', 'Revisão de ligações', Link2],
   ['shopping', 'Shopping', ShoppingBag],
   ['partners', 'Clientes e fornecedores', UsersRound],
+  ['reports', 'Relatórios', BarChart3],
   ['team', 'Equipa', UserCog],
 ]
 

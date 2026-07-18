@@ -29,12 +29,14 @@ DEFAULT_LABELS = [
 
 # Etiquetas de malha decalcadas do quadro PEDIDO MALHAS do Trello.
 DEFAULT_FABRIC_LABELS = [
+    ("Stock disponível - envio em curso", "mint"),
     ("Pedido feito", "sky"),
     ("Resposta pendente", "yellow"),
     ("A desenvolver rolo", "peach"),
     ("Stock disponível", "mint"),
     ("Sem stock", "pink"),
     ("Fora de coleção", "pink"),
+    ("Fora de coleção / sem possibilidade", "pink"),
     ("Rolo/metros recebido", "mint"),
     ("Fatura validada", "lilac"),
     ("Falta pedir forro ao tom", "lilac"),

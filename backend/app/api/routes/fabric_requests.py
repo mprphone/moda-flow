@@ -1,10 +1,11 @@
 from datetime import date
+import json
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session, joinedload, selectinload
 from app.core.db import get_db
 from app.core.timeutil import today
-from app.models.fabric_request import FABRIC_STATUSES, FabricRequest
+from app.models.fabric_request import FABRIC_STATUSES, FABRIC_STOCK_STATUSES, FabricRequest
 from app.models.label import Label
 from app.models.development import Development
 from app.models.material_link import FabricDevelopmentLink
@@ -43,6 +44,25 @@ def ensure_development_link(db: Session, item: FabricRequest, development_id: in
         db.add(FabricDevelopmentLink(fabric_request_id=item.id, development_id=development_id, relation_type=relation_type))
 
 
+def apply_label_semantics(item: FabricRequest) -> None:
+    names = " | ".join(label.name.lower() for label in item.labels)
+    if "stock disponível" in names:
+        item.stock_status = "available"
+    elif "sem stock" in names:
+        item.stock_status = "unavailable"
+    elif "fora de coleção" in names:
+        item.stock_status = "discontinued"
+    elif "desenvolver rolo" in names:
+        item.stock_status = "developing"
+    if "envio em curso" in names:
+        item.status = "envio_em_curso"
+    elif "rolo/metros recebido" in names:
+        item.status = "recebida"
+        item.received_at = item.received_at or today()
+    elif "pedido feito" in names:
+        item.status = "pedido"
+
+
 class FabricRequestCreate(ORMModel):
     reference: str
     article: str | None = None
@@ -54,10 +74,18 @@ class FabricRequestCreate(ORMModel):
     price_per_meter: float | None = None
     leadtime: str | None = None
     notes: str | None = None
+    request_channel: str | None = None
+    stock_status: str = "unknown"
+    requested_by: str | None = None
+    requested_to: str | None = None
+    treatment_notes: str | None = None
+    attachments: list[dict] | None = None
     cover_url: str | None = None
     supplier_id: int | None = None
     development_id: int | None = None
     requested_at: date | None = None
+    expected_at: date | None = None
+    supplier_confirmed_at: date | None = None
     label_ids: list[int] | None = None
 
 
@@ -65,6 +93,7 @@ class FabricRequestUpdate(FabricRequestCreate):
     reference: str | None = None
     status: str | None = None
     received_at: date | None = None
+    stock_status: str | None = None
 
 
 def load_by_id(db: Session, request_id: int) -> FabricRequest | None:
@@ -82,11 +111,15 @@ def get_fabric_requests(db: Session = Depends(get_db)):
 def post_fabric_request(payload: FabricRequestCreate, db: Session = Depends(get_db)):
     data = payload.model_dump()
     label_ids = data.pop("label_ids", None)
+    attachments = data.pop("attachments", None)
     if data.get("requested_at") is None:
         data["requested_at"] = today()
-    item = FabricRequest(**data)
+    if data.get("stock_status") not in FABRIC_STOCK_STATUSES:
+        raise HTTPException(status_code=422, detail="Disponibilidade de stock inválida")
+    item = FabricRequest(**data, attachments_json=json.dumps(attachments or []))
     if label_ids:
         item.labels = list(db.scalars(select(Label).where(Label.id.in_(label_ids))).all())
+        apply_label_semantics(item)
     db.add(item)
     db.flush()
     ensure_development_link(db, item, item.development_id)
@@ -101,14 +134,19 @@ def patch_fabric_request(request_id: int, payload: FabricRequestUpdate, db: Sess
         raise HTTPException(status_code=404, detail="Pedido de malha não encontrado")
     data = payload.model_dump(exclude_unset=True)
     label_ids = data.pop("label_ids", None)
+    if "attachments" in data:
+        item.attachments_json = json.dumps(data.pop("attachments") or [])
     if label_ids is not None:
         item.labels = list(db.scalars(select(Label).where(Label.id.in_(label_ids))).all())
+        apply_label_semantics(item)
     if "status" in data:
         if data["status"] not in FABRIC_STATUSES:
             raise HTTPException(status_code=422, detail="Estado inválido")
         # Ao marcar como recebida, regista automaticamente a data de receção.
         if data["status"] in {"recebida", "tingimento"} and not item.received_at and "received_at" not in data:
             data["received_at"] = today()
+    if data.get("stock_status") not in (None, *FABRIC_STOCK_STATUSES):
+        raise HTTPException(status_code=422, detail="Disponibilidade de stock inválida")
     for key, value in data.items():
         setattr(item, key, value)
     if "development_id" in data:

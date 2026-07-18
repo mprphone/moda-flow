@@ -28,7 +28,10 @@ def test_fabric_request_lifecycle(client, db_session):
         "reference": "NWJ 7986/B", "article": "JERSEY", "composition": "CO/PES", "grammage": "190", "width": "1.50",
         "color": "cor de cartaz", "quantity_meters": 4, "supplier_id": supplier_id, "development_id": dev_id,
         "requested_at": str(date.today() - timedelta(days=6)),
-        "notes": "pedido por whatsapp",
+        "expected_at": str(date.today() + timedelta(days=2)), "request_channel": "whatsapp",
+        "requested_by": "Joana Ferreira", "requested_to": "Luís", "stock_status": "available",
+        "treatment_notes": "Tingir jersey duplo na cor azul Atom", "notes": "pedido por whatsapp",
+        "attachments": [{"url": "https://example.com/etiqueta.jpg", "mime_type": "image/jpeg", "name": "Etiqueta"}],
     }, headers=headers)
     assert created.status_code == 201, created.text
     body = created.json()
@@ -36,6 +39,9 @@ def test_fabric_request_lifecycle(client, db_session):
     assert body["development_code"] == "JF_B001_246"
     assert body["days_pending"] == 6
     assert body["needs_reminder"] is True
+    assert body["requested_to"] == "Luís"
+    assert body["stock_status"] == "available"
+    assert body["attachments"][0]["name"] == "Etiqueta"
 
     # aparece dentro do detalhe do desenvolvimento (sequência malha -> desenvolvimento)
     detail = client.get(f"/api/developments/{dev_id}", headers=headers).json()
@@ -51,6 +57,8 @@ def test_fabric_request_lifecycle(client, db_session):
 
     invalid = client.patch(f"/api/fabric-requests/{body['id']}", json={"status": "inexistente"}, headers=headers)
     assert invalid.status_code == 422
+    invalid_stock = client.patch(f"/api/fabric-requests/{body['id']}", json={"stock_status": "inexistente"}, headers=headers)
+    assert invalid_stock.status_code == 422
 
     # apagar um desenvolvimento com malhas associadas desliga-as em vez de falhar
     other = client.post("/api/fabric-requests", json={"reference": "OUTRA REF", "development_id": dev_id}, headers=headers).json()
@@ -80,6 +88,11 @@ def test_fabric_labels(client, db_session):
 
     cleared = client.patch(f"/api/fabric-requests/{created.json()['id']}", json={"label_ids": []}, headers=headers)
     assert cleared.json()["labels"] == []
+
+    operational = client.post("/api/labels", json={"name": "STOCK DISPONÍVEL - ENVIO EM CURSO", "tone": "mint", "scope": "fabric"}, headers=headers).json()
+    semantic = client.patch(f"/api/fabric-requests/{created.json()['id']}", json={"label_ids": [operational["id"]]}, headers=headers)
+    assert semantic.json()["stock_status"] == "available"
+    assert semantic.json()["status"] == "envio_em_curso"
 
 
 def test_one_fabric_can_be_linked_to_multiple_developments(client, db_session):

@@ -12,6 +12,7 @@ import { TeamPage } from './pages/TeamPage'
 import { FabricsPage } from './pages/FabricsPage'
 import { LoginPage } from './pages/LoginPage'
 import { ReconciliationPage } from './pages/ReconciliationPage'
+import { ReportsPage } from './pages/ReportsPage'
 import { AuthProvider, useAuth } from './auth'
 import { MobileQrUploadPage } from './pages/MobileQrUploadPage'
 
@@ -37,6 +38,7 @@ function Shell() {
         {page === 'partners' && <PartnersPage/>}
         {page === 'production' && <ProductionPage/>}
         {page === 'reconciliation' && <ReconciliationPage/>}
+        {page === 'reports' && <ReportsPage/>}
         {page === 'team' && <TeamPage/>}
       </main>
     </div>

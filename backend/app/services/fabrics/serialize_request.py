@@ -1,3 +1,4 @@
+import json
 from app.core.timeutil import today
 from app.models.fabric_request import FabricRequest
 
@@ -32,6 +33,12 @@ def serialize_request(item: FabricRequest) -> dict:
         "price_per_meter": float(item.price_per_meter) if item.price_per_meter is not None else None,
         "leadtime": item.leadtime,
         "notes": item.notes,
+        "request_channel": item.request_channel,
+        "stock_status": item.stock_status,
+        "requested_by": item.requested_by,
+        "requested_to": item.requested_to,
+        "treatment_notes": item.treatment_notes,
+        "attachments": json.loads(item.attachments_json or "[]"),
         "cover_url": item.cover_url,
         "status": item.status,
         "supplier_id": item.supplier_id,
@@ -40,6 +47,8 @@ def serialize_request(item: FabricRequest) -> dict:
         "development_code": item.development.code if item.development else (primary["code"] if primary else None),
         "developments": list(developments.values()),
         "requested_at": item.requested_at,
+        "expected_at": item.expected_at,
+        "supplier_confirmed_at": item.supplier_confirmed_at,
         "received_at": item.received_at,
         "labels": [{"id": label.id, "name": label.name, "tone": label.tone} for label in item.labels],
         "days_pending": days_pending,

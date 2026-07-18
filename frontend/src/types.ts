@@ -68,6 +68,12 @@ export type FabricRequest = {
   price_per_meter?: number
   leadtime?: string
   notes?: string
+  request_channel?: string
+  stock_status: string
+  requested_by?: string
+  requested_to?: string
+  treatment_notes?: string
+  attachments: { url: string; mime_type: string; name: string }[]
   cover_url?: string
   status: string
   supplier_id?: number
@@ -76,6 +82,8 @@ export type FabricRequest = {
   development_code?: string
   developments: { link_id?: number; id: number; code: string; title: string; relation_type: string }[]
   requested_at: string
+  supplier_confirmed_at?: string
+  expected_at?: string
   received_at?: string
   labels: Label[]
   days_pending?: number

@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
 import { DndContext, DragEndEvent, PointerSensor, useDraggable, useDroppable, useSensor, useSensors } from '@dnd-kit/core'
-import { AlertTriangle, Clock3, Scroll, Trash2, X } from 'lucide-react'
+import { AlertTriangle, Clock3, Scroll, X } from 'lucide-react'
 import { api } from '../api/client'
 import { toast } from '../lib/toast'
 import { UploadInput } from '../components/UploadInput'
-import { LabelPicker } from '../components/LabelPicker'
-import type { Development, FabricRequest, Label, Supplier } from '../types'
+import { FabricDetailModal } from '../components/FabricDetailModal'
+import type { Development, FabricRequest, Label, Score, Supplier } from '../types'
 
 type Response = { statuses: string[]; items: FabricRequest[] }
 
@@ -20,7 +20,8 @@ export const FABRIC_STATUS_NAMES: Record<string, string> = {
 const EMPTY_FORM = {
   reference: '', supplier_id: '', development_id: '', color: '', quantity_meters: '',
   article: '', composition: '', width: '', grammage: '', price_per_meter: '', leadtime: '',
-  requested_at: '', notes: '', cover_url: '',
+  requested_at: '', expected_at: '', notes: '', cover_url: '', request_channel: 'whatsapp',
+  requested_by: '', requested_to: '', stock_status: 'unknown', treatment_notes: '',
 }
 
 const STATUS_TONES: Record<string, string> = {
@@ -30,6 +31,8 @@ const STATUS_TONES: Record<string, string> = {
   tingimento: 'lilac',
   cancelada: 'pink',
 }
+const STOCK_CARD_NAMES: Record<string, string> = { unknown: 'Stock por confirmar', available: 'Stock disponível', unavailable: 'Sem stock', developing: 'Rolo a desenvolver', discontinued: 'Fora de coleção', partial: 'Stock parcial' }
+const STOCK_CARD_TONES: Record<string, string> = { unknown: 'lilac', available: 'mint', unavailable: 'pink', developing: 'peach', discontinued: 'pink', partial: 'yellow' }
 
 function FabricCard({ item, onOpen, showStatus }: { item: FabricRequest; onOpen: () => void; showStatus?: boolean }) {
   const { attributes, listeners, setNodeRef, transform } = useDraggable({ id: item.id, data: item })
@@ -40,6 +43,7 @@ function FabricCard({ item, onOpen, showStatus }: { item: FabricRequest; onOpen:
       <div className="card-title">{item.reference}</div>
       {item.color && <div className="card-subtitle">{item.color}</div>}
       <div className="chips">
+        <span className={`chip tone-${STOCK_CARD_TONES[item.stock_status] || 'lilac'}`}>{STOCK_CARD_NAMES[item.stock_status] || item.stock_status}</span>
         {showStatus
           ? <span className={`chip tone-${STATUS_TONES[item.status] || 'lilac'}`}>{FABRIC_STATUS_NAMES[item.status] || item.status}</span>
           : item.supplier_name && <span className="chip tone-lilac">{item.supplier_name}</span>}
@@ -72,15 +76,15 @@ export function FabricsPage() {
   const [suppliers, setSuppliers] = useState<Supplier[]>([])
   const [developments, setDevelopments] = useState<Development[]>([])
   const [labels, setLabels] = useState<Label[]>([])
+  const [supplierScores, setSupplierScores] = useState<Score[]>([])
   const [query, setQuery] = useState('')
   const [supplierFilter, setSupplierFilter] = useState('')
   const [labelFilter, setLabelFilter] = useState('')
+  const [stockFilter, setStockFilter] = useState('')
   const [view, setView] = useState<'estado' | 'fornecedor'>('estado')
   const [creating, setCreating] = useState(false)
   const [selected, setSelected] = useState<FabricRequest | null>(null)
   const [form, setForm] = useState(EMPTY_FORM)
-  const [newDevelopmentId, setNewDevelopmentId] = useState('')
-  const [relationType, setRelationType] = useState('candidate')
 
   // O arrasto só arma após 6px de movimento — o clique simples abre o cartão.
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }))
@@ -90,15 +94,17 @@ export function FabricsPage() {
     api.get<Supplier[]>('/suppliers').then(setSuppliers)
     api.get<Development[]>('/developments').then(setDevelopments)
     api.get<Label[]>('/labels?scope=fabric').then(setLabels)
+    api.get<Score[]>('/suppliers/scores').then(setSupplierScores)
   }, [])
 
   const visible = useMemo(() => data.items.filter(item => {
-    const text = `${item.reference} ${item.color || ''} ${item.supplier_name || ''} ${item.development_code || ''}`.toLowerCase()
+    const text = `${item.reference} ${item.color || ''} ${item.supplier_name || ''} ${item.requested_to || ''} ${item.notes || ''} ${item.development_code || ''}`.toLowerCase()
     if (query && !text.includes(query.toLowerCase())) return false
     if (supplierFilter && String(item.supplier_id) !== supplierFilter) return false
     if (labelFilter && !item.labels.some(label => String(label.id) === labelFilter)) return false
+    if (stockFilter && item.stock_status !== stockFilter) return false
     return true
-  }), [data, query, supplierFilter, labelFilter])
+  }), [data, query, supplierFilter, labelFilter, stockFilter])
 
   // Colunas: por estado (pipeline) ou por fornecedor (como no Trello)
   const columns = useMemo(() => {
@@ -153,14 +159,12 @@ export function FabricsPage() {
     toast('success', 'Pedido eliminado.')
   }
 
-  async function addDevelopment(id: number) {
-    if (!newDevelopmentId) return
+  async function addDevelopment(id: number, developmentId: number, linkType: string) {
     const updated = await api.post<FabricRequest>(`/fabric-requests/${id}/developments`, {
-      development_id: Number(newDevelopmentId), relation_type: relationType,
+      development_id: developmentId, relation_type: linkType,
     })
     setData(current => ({ ...current, items: current.items.map(item => item.id === id ? updated : item) }))
     setSelected(updated)
-    setNewDevelopmentId('')
     toast('success', 'Modelo ligado à malha.')
   }
 
@@ -188,6 +192,12 @@ export function FabricsPage() {
       leadtime: form.leadtime || null,
       requested_at: form.requested_at || null,
       notes: form.notes || null,
+      request_channel: form.request_channel || null,
+      requested_by: form.requested_by || null,
+      requested_to: form.requested_to || null,
+      stock_status: form.stock_status,
+      expected_at: form.expected_at || null,
+      treatment_notes: form.treatment_notes || null,
       cover_url: form.cover_url || null,
     })
     setCreating(false)
@@ -219,49 +229,23 @@ export function FabricsPage() {
         <option value="">Todas as etiquetas</option>
         {labels.map(label => <option key={label.id} value={label.id}>{label.name}</option>)}
       </select>
-      {(query || supplierFilter || labelFilter) && <button className="clear-filters" onClick={() => { setQuery(''); setSupplierFilter(''); setLabelFilter('') }}>Limpar</button>}
+      <select value={stockFilter} onChange={e => setStockFilter(e.target.value)}><option value="">Todo o stock</option>{Object.entries(STOCK_CARD_NAMES).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select>
+      {(query || supplierFilter || labelFilter || stockFilter) && <button className="clear-filters" onClick={() => { setQuery(''); setSupplierFilter(''); setLabelFilter(''); setStockFilter('') }}>Limpar</button>}
     </div>
     <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
       <div className="board-scroll">
         {columns.map(column => <FabricColumn key={`${view}-${column.id}`} id={column.id} title={column.title} items={grouped[column.id] || []} onOpen={setSelected} showStatus={view === 'fornecedor'}/>)}
       </div>
     </DndContext>
-    {selected && <div className="modal-backdrop" onMouseDown={() => setSelected(null)}>
-      <div className="create-modal fabric-detail" onMouseDown={e => e.stopPropagation()}>
-        <button type="button" className="modal-close" onClick={() => setSelected(null)}><X/></button>
-        {selected.cover_url && <img className="fabric-detail-photo" src={selected.cover_url} alt=""/>}
-        <h2>{selected.reference}{selected.color ? ` · ${selected.color}` : ''}</h2>
-        <p>{[selected.article, selected.composition, selected.grammage ? `${selected.grammage} g` : null, selected.width ? `${selected.width} m` : null].filter(Boolean).join(' · ') || 'Sem ficha da etiqueta'}
-          {selected.quantity_meters ? ` — ${selected.quantity_meters} metros` : ''}{selected.price_per_meter ? ` — ${selected.price_per_meter.toFixed(2)} €/mt` : ''}{selected.leadtime ? ` — ${selected.leadtime}` : ''}</p>
-        {selected.notes && <p className="fabric-notes">{selected.notes}</p>}
-        <LabelPicker all={labels} applied={selected.labels} onChange={(ids) => void patchItem(selected.id, { label_ids: ids })}/>
-        <label>Estado<select value={selected.status} onChange={e => void patchItem(selected.id, { status: e.target.value }, 'Estado atualizado.')}>
-          {data.statuses.map(status => <option key={status} value={status}>{FABRIC_STATUS_NAMES[status] || status}</option>)}
-        </select></label>
-        <label>Fornecedor<select value={selected.supplier_id ?? ''} onChange={e => void patchItem(selected.id, { supplier_id: e.target.value ? Number(e.target.value) : null }, 'Fornecedor atualizado.')}>
-          <option value="">Sem fornecedor</option>
-          {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-        </select></label>
-        <div className="history-section">
-          <strong>Modelos associados</strong>
-          <div className="chips">{selected.developments.map(d => <span className="chip tone-sky" key={d.id}>
-            {d.code} · {d.relation_type}{d.link_id && <button type="button" aria-label={`Remover ${d.code}`} onClick={() => void removeDevelopment(selected.id, d.link_id)}>×</button>}
-          </span>)}</div>
-          {selected.developments.length === 0 && <p className="empty-note">Ainda sem modelo associado.</p>}
-          <div className="production-form-grid">
-            <label>Adicionar modelo<select value={newDevelopmentId} onChange={e => setNewDevelopmentId(e.target.value)}>
-              <option value="">Selecionar...</option>
-              {developments.filter(d => !selected.developments.some(link => link.id === d.id)).map(d => <option key={d.id} value={d.id}>{d.code} — {d.title}</option>)}
-            </select></label>
-            <label>Relação<select value={relationType} onChange={e => setRelationType(e.target.value)}>
-              <option value="candidate">Candidata</option><option value="tested">Testada</option><option value="approved">Aprovada</option><option value="production">Produção</option><option value="alternative">Alternativa</option><option value="rejected">Rejeitada</option>
-            </select></label>
-          </div>
-          <button type="button" className="secondary-button" disabled={!newDevelopmentId} onClick={() => void addDevelopment(selected.id)}>Associar modelo</button>
-        </div>
-        <button className="action danger" onClick={() => void remove(selected.id)}><Trash2 size={15}/> Eliminar pedido</button>
-      </div>
-    </div>}
+    {selected && <FabricDetailModal
+      item={selected} statuses={data.statuses} suppliers={suppliers} labels={labels} developments={developments}
+      supplierAverageDays={supplierScores.find(score => score.supplier_id === selected.supplier_id)?.fabric_avg_days ?? undefined}
+      onClose={() => setSelected(null)}
+      onPatch={(payload, message) => patchItem(selected.id, payload, message)}
+      onDelete={() => void remove(selected.id)}
+      onAddDevelopment={(developmentId, linkType) => addDevelopment(selected.id, developmentId, linkType)}
+      onRemoveDevelopment={(linkId) => removeDevelopment(selected.id, linkId)}
+    />}
     {creating && <div className="modal-backdrop" onMouseDown={() => setCreating(false)}>
       <form className="create-modal wide" onSubmit={submit} onMouseDown={e => e.stopPropagation()}>
         <button type="button" className="modal-close" onClick={() => setCreating(false)}><X/></button>
@@ -286,8 +270,14 @@ export function FabricsPage() {
           <label>Preço €/mt<input type="number" step="0.01" min="0" value={form.price_per_meter} onChange={e => setForm({ ...form, price_per_meter: e.target.value })}/></label>
           <label>Leadtime<input value={form.leadtime} onChange={e => setForm({ ...form, leadtime: e.target.value })} placeholder="4-5 semanas"/></label>
           <label>Data do pedido<input type="date" value={form.requested_at} onChange={e => setForm({ ...form, requested_at: e.target.value })}/></label>
+          <label>Pedido por<input value={form.requested_by} onChange={e => setForm({ ...form, requested_by: e.target.value })} placeholder="Designer / responsável"/></label>
+          <label>Pedido a<input value={form.requested_to} onChange={e => setForm({ ...form, requested_to: e.target.value })} placeholder="Contacto do fornecedor"/></label>
+          <label>Canal<select value={form.request_channel} onChange={e => setForm({ ...form, request_channel: e.target.value })}><option value="whatsapp">WhatsApp</option><option value="email">Email</option><option value="telefone">Telefone</option><option value="reuniao">Reunião</option></select></label>
+          <label>Disponibilidade<select value={form.stock_status} onChange={e => setForm({ ...form, stock_status: e.target.value })}><option value="unknown">Por confirmar</option><option value="available">Stock disponível</option><option value="unavailable">Sem stock</option><option value="developing">Rolo a desenvolver</option><option value="discontinued">Fora de coleção</option><option value="partial">Stock parcial</option></select></label>
+          <label>Previsão de chegada<input type="date" value={form.expected_at} onChange={e => setForm({ ...form, expected_at: e.target.value })}/></label>
         </div>
-        <label>Notas<input value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} placeholder="pedido por whatsapp: 4 mts na cor de cartaz"/></label>
+        <label>Instruções de tingimento/acabamento<input value={form.treatment_notes} onChange={e => setForm({ ...form, treatment_notes: e.target.value })} placeholder="Tingir jersey duplo, rolo 6264, azul Atom..."/></label>
+        <label>Notas<input value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} placeholder="Informação adicional e histórico"/></label>
         <UploadInput value={form.cover_url} onChange={url => setForm({ ...form, cover_url: url })} label="Fotografia da malha / etiqueta"/>
         <button className="primary-button" type="submit">Registar pedido</button>
       </form>
