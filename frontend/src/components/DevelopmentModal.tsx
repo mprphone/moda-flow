@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { X, Sparkles, Clock3, UserRound, CalendarDays, ArrowRight, Layers3, Factory, Trash2, TrendingUp, MessageCircle, StickyNote, Scroll } from 'lucide-react'
+import { X, Sparkles, Clock3, UserRound, CalendarDays, ArrowRight, Layers3, Factory, Trash2, TrendingUp, MessageCircle, StickyNote, Scroll, Route } from 'lucide-react'
 import { api } from '../api/client'
 import { toast } from '../lib/toast'
 import { StageTrace } from './StageTrace'
@@ -11,6 +11,10 @@ const PRODUCTION_STAGE_NAMES: Record<string, string> = {
   encomenda_recebida: 'Encomenda recebida', materiais: 'Materiais', corte: 'Corte',
   confecao: 'Confeção', controlo_qualidade: 'Controlo qualidade', expedida: 'Expedida', cancelada: 'Cancelada',
 }
+const PRODUCTION_STAGES: [string, string][] = [
+  ['encomenda_recebida', 'Encomenda recebida'], ['materiais', 'Materiais'], ['corte', 'Corte'],
+  ['confecao', 'Confeção'], ['controlo_qualidade', 'Controlo qualidade'], ['expedida', 'Expedida'],
+]
 
 const STATUS_BADGE: Record<string, { label: string; tone: string }> = {
   active: { label: 'Em curso', tone: 'sky' },
@@ -128,38 +132,6 @@ export function DevelopmentModal({ item, labels, onClose, onMove, onStatus, onRe
         <div className="compact-pipeline">{PIPELINE.map(([id,label], i) => <button key={id} className={i < index ? 'done' : i === index ? 'active' : ''} onClick={() => onMove(id)}><span>{i+1}</span>{label}</button>)}</div>
         <section className="smart-panel"><div><Sparkles size={20}/><strong>Assistente do desenvolvimento</strong></div>{item.suggestions.length ? item.suggestions.map(text => <p key={text}>{text}</p>) : <p>O desenvolvimento está dentro do ritmo normal.</p>}</section>
         <section className="current-stage"><div className="section-title"><Layers3 size={18}/><strong>Fase atual</strong></div><div className="stage-focus"><div><small>ONDE ESTÁ</small><strong>{STAGE_LABELS[item.current_stage]}</strong></div><div><small>PRÓXIMA AÇÃO</small><strong>{item.next_action}</strong></div><div><small>MOTIVO DE ESPERA</small><strong>{item.waiting_reason || 'Sem bloqueios registados'}</strong></div></div></section>
-        <section className="history-section">
-          <div className="section-title fabric-title">
-            <Scroll size={18}/><strong>Malhas deste modelo</strong>
-            <button className="team-action" onClick={() => setAddingFabric(v => !v)}>{addingFabric ? 'Cancelar' : '+ Pedir malha'}</button>
-          </div>
-          {addingFabric && <div className="fabric-quick-add">
-            <input placeholder="Referência *" value={fabricForm.reference} onChange={e => setFabricForm({ ...fabricForm, reference: e.target.value })}/>
-            <select value={fabricForm.supplier_id} onChange={e => setFabricForm({ ...fabricForm, supplier_id: e.target.value })}>
-              <option value="">Fornecedor...</option>
-              {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-            </select>
-            <input placeholder="Metros" type="number" step="0.5" min="0" value={fabricForm.quantity_meters} onChange={e => setFabricForm({ ...fabricForm, quantity_meters: e.target.value })}/>
-            <input placeholder="Cor" value={fabricForm.color} onChange={e => setFabricForm({ ...fabricForm, color: e.target.value })}/>
-            <button disabled={saving || !fabricForm.reference.trim()} onClick={() => void submitFabric()}>Pedir</button>
-          </div>}
-          {detail && detail.fabric_requests.length > 0 && <div className="history-list">{detail.fabric_requests.map(f => <div className="history-row" key={f.id}>
-            <strong>{f.reference}{f.color ? ` · ${f.color}` : ''}{f.supplier_name ? ` — ${f.supplier_name}` : ''}</strong>
-            <span>
-              {{pedido: 'Pedido', envio_em_curso: 'Envio em curso', recebida: 'Recebida', tingimento: 'Tingimento', cancelada: 'Cancelada'}[f.status] || f.status}
-              {f.days_pending != null ? ` · há ${f.days_pending} d` : ''}
-              {f.needs_reminder ? ' · ⚠ relançar fornecedor' : ''}
-            </span>
-          </div>)}</div>}
-          {detail && detail.fabric_requests.length === 0 && !addingFabric && <p className="empty-note">Ainda sem malhas pedidas para este modelo.</p>}
-        </section>
-        {detail && detail.productions.length > 0 && <section className="history-section">
-          <div className="section-title"><Factory size={18}/><strong>Produções deste modelo</strong></div>
-          <div className="history-list">{detail.productions.map(p => <div className="history-row" key={p.id}>
-            <strong>{p.title || `Produção #${p.id}`}</strong>
-            <span>{PRODUCTION_STAGE_NAMES[p.status] || p.status}{p.quantity > 0 ? ` · ${p.quantity} un.` : ''}{p.due_date ? ` · prazo ${p.due_date}` : ''}</span>
-          </div>)}</div>
-        </section>}
         <section className="history-section notes-section">
           <div className="section-title"><StickyNote size={18}/><strong>Notas</strong></div>
           <textarea
@@ -171,6 +143,64 @@ export function DevelopmentModal({ item, labels, onClose, onMove, onStatus, onRe
             <button disabled={saving} onClick={() => void saveNotes()}>Guardar notas</button>
           </div>}
         </section>
+
+        <section className="history-section journey">
+          <div className="journey-title"><Route size={19}/><strong>Percurso do modelo — do desenho à produção</strong></div>
+
+          <div className="journey-block">
+            <div className="journey-head"><span className="journey-badge dev"><Layers3 size={14}/></span>1 · Desenvolvimento da amostra</div>
+            {detail && <StageTrace
+              heading=""
+              stages={PIPELINE as unknown as [string, string][]}
+              history={detail.stage_history}
+              onSaveNote={saveStageNote}
+              summary={<>
+                <span>{completedStages} etapas concluídas</span>
+                <span>{totalDays} dias no total</span>
+                {detail.estimated_completion && <span className={detail.eta_at_risk ? 'eta-risk' : ''}>Previsão: {detail.estimated_completion}</span>}
+              </>}
+            />}
+          </div>
+
+          <div className="journey-block">
+            <div className="journey-head"><span className="journey-badge fabric"><Scroll size={14}/></span>2 · Malhas
+              <button className="team-action" onClick={() => setAddingFabric(v => !v)}>{addingFabric ? 'Cancelar' : '+ Pedir malha'}</button>
+            </div>
+            {addingFabric && <div className="fabric-quick-add">
+              <input placeholder="Referência *" value={fabricForm.reference} onChange={e => setFabricForm({ ...fabricForm, reference: e.target.value })}/>
+              <select value={fabricForm.supplier_id} onChange={e => setFabricForm({ ...fabricForm, supplier_id: e.target.value })}>
+                <option value="">Fornecedor...</option>
+                {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+              </select>
+              <input placeholder="Metros" type="number" step="0.5" min="0" value={fabricForm.quantity_meters} onChange={e => setFabricForm({ ...fabricForm, quantity_meters: e.target.value })}/>
+              <input placeholder="Cor" value={fabricForm.color} onChange={e => setFabricForm({ ...fabricForm, color: e.target.value })}/>
+              <button disabled={saving || !fabricForm.reference.trim()} onClick={() => void submitFabric()}>Pedir</button>
+            </div>}
+            {detail && detail.fabric_requests.length > 0 && <div className="history-list">{detail.fabric_requests.map(f => <div className="history-row" key={f.id}>
+              <strong>{f.reference}{f.color ? ` · ${f.color}` : ''}{f.supplier_name ? ` — ${f.supplier_name}` : ''}</strong>
+              <span>
+                {{pedido: 'Pedido', envio_em_curso: 'Envio em curso', recebida: 'Recebida', tingimento: 'Tingimento', cancelada: 'Cancelada'}[f.status] || f.status}
+                {f.days_pending != null ? ` · há ${f.days_pending} d` : ''}
+                {f.needs_reminder ? ' · ⚠ relançar fornecedor' : ''}
+              </span>
+            </div>)}</div>}
+            {detail && detail.fabric_requests.length === 0 && !addingFabric && <p className="empty-note">Ainda sem malhas pedidas.</p>}
+          </div>
+
+          <div className="journey-block">
+            <div className="journey-head"><span className="journey-badge prod"><Factory size={14}/></span>3 · Produção industrial</div>
+            {detail && detail.productions.length === 0 && <p className="empty-note">Ainda não passou para produção industrial.</p>}
+            {detail && detail.productions.map(p => <div key={p.id} className="journey-production">
+              <div className="journey-prod-head">
+                <strong>{p.title || `Produção #${p.id}`}</strong>
+                <span className="chip tone-sky">{PRODUCTION_STAGE_NAMES[p.status] || p.status}</span>
+                {p.quantity > 0 && <span className="journey-prod-qty">{p.quantity} un.</span>}
+              </div>
+              {p.stage_history.length > 0 && <StageTrace heading="" readOnly stages={PRODUCTION_STAGES} history={p.stage_history}/>}
+            </div>)}
+          </div>
+        </section>
+
         <section className="history-section">
           <div className="section-title"><MessageCircle size={18}/><strong>Comentários</strong></div>
           <div className="comment-box">
@@ -183,18 +213,6 @@ export function DevelopmentModal({ item, labels, onClose, onMove, onStatus, onRe
             <small>{new Date(c.created_at).toLocaleString('pt-PT', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</small>
           </div>)}</div>
         </section>
-        {detail && <section className="history-section">
-          <StageTrace
-            stages={PIPELINE as unknown as [string, string][]}
-            history={detail.stage_history}
-            onSaveNote={saveStageNote}
-            summary={<>
-              <span>{completedStages} etapas concluídas</span>
-              <span>{totalDays} dias no total</span>
-              {detail.estimated_completion && <span className={detail.eta_at_risk ? 'eta-risk' : ''}>Previsão: {detail.estimated_completion}</span>}
-            </>}
-          />
-        </section>}
       </div>
       <aside className="modal-side">
         <h3>Ações rápidas</h3>

@@ -137,6 +137,9 @@ export type ProductionDetail = Production & {
   fabric_requests: FabricRequest[]
 }
 
-export type LinkedProduction = { id: number; status: string; quantity: number; due_date?: string; title?: string }
+export type LinkedProduction = {
+  id: number; status: string; quantity: number; due_date?: string; title?: string
+  created_at: string; stage_history: StageHistoryItem[]
+}
 
 export type StageStat = { stage: string; label: string; average_days?: number; completed_events: number }

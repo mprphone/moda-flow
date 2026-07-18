@@ -38,8 +38,20 @@ def serialize_detail(db: Session, development) -> dict:
         .order_by(FabricRequest.requested_at.desc())
     )
     data["fabric_requests"] = [serialize_request(item) for item in db.scalars(fabric_stmt).unique().all()]
-    data["productions"] = [
-        {"id": p.id, "status": p.status, "quantity": p.quantity, "due_date": p.due_date, "title": p.title}
-        for p in development.productions
-    ]
+    productions = []
+    for p in development.productions:
+        history = []
+        for event in sorted(p.events, key=lambda e: e.started_at):
+            seconds = ((event.ended_at or utcnow()) - event.started_at).total_seconds()
+            history.append({
+                "id": event.id, "stage": event.stage, "status": event.status,
+                "started_at": event.started_at, "ended_at": event.ended_at,
+                "days": round(seconds / 86400, 1), "note": event.note,
+                "responsible_name": event.responsible_name, "supplier_name": None,
+            })
+        productions.append({
+            "id": p.id, "status": p.status, "quantity": p.quantity, "due_date": p.due_date,
+            "title": p.title, "created_at": p.created_at, "stage_history": history,
+        })
+    data["productions"] = productions
     return data

@@ -1,11 +1,12 @@
 from sqlalchemy import select
 from sqlalchemy.orm import Session, joinedload, selectinload
 from app.models.development import Development
+from app.models.production import Production
 
 LIST_OPTIONS = (
     joinedload(Development.client),
     selectinload(Development.stage_events),
-    selectinload(Development.productions),
+    selectinload(Development.productions).selectinload(Production.events),
     selectinload(Development.labels),
     selectinload(Development.comments),
 )
