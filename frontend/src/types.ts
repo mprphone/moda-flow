@@ -100,8 +100,14 @@ export type DevelopmentDetail = Development & {
   productions: LinkedProduction[]
 }
 
-export type Client = { id: number; name: string; group_name?: string; notes?: string }
-export type Supplier = { id: number; name: string; category: string; email?: string; phone?: string }
+export type Client = {
+  id: number; name: string; group_name?: string; notes?: string
+  email?: string; phone?: string; contact_person?: string; segments?: string; preferred_channel?: string; meetings?: string
+}
+export type Supplier = {
+  id: number; name: string; category: string; email?: string; phone?: string
+  contact_person?: string; preferred_channel?: string; meetings?: string; notes?: string
+}
 export type Score = {
   client_id?: number
   supplier_id?: number

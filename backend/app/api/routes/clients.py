@@ -11,9 +11,18 @@ from app.services.scoring.client_score import calculate_client_score
 router = APIRouter()
 
 
+def serialize_client(item) -> dict:
+    return {
+        "id": item.id, "name": item.name, "group_name": item.group_name,
+        "email": item.email, "phone": item.phone, "contact_person": item.contact_person,
+        "segments": item.segments, "preferred_channel": item.preferred_channel,
+        "meetings": item.meetings, "notes": item.notes,
+    }
+
+
 @router.get("")
 def get_clients(db: Session = Depends(get_db)):
-    return [{"id": item.id, "name": item.name, "group_name": item.group_name, "notes": item.notes} for item in list_all(db)]
+    return [serialize_client(item) for item in list_all(db)]
 
 
 @router.post("", status_code=201)
@@ -25,7 +34,7 @@ def post_client(payload: ClientCreate, db: Session = Depends(get_db)):
     db.add(item)
     db.commit()
     db.refresh(item)
-    return item
+    return serialize_client(item)
 
 
 @router.patch("/{client_id}")
@@ -42,7 +51,7 @@ def patch_client(client_id: int, payload: ClientUpdate, db: Session = Depends(ge
     for key, value in data.items():
         setattr(item, key, value)
     db.commit(); db.refresh(item)
-    return item
+    return serialize_client(item)
 
 
 @router.delete("/{client_id}", status_code=204)

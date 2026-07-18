@@ -6,6 +6,10 @@ class SupplierCreate(ORMModel):
     category: str = "geral"
     email: str | None = None
     phone: str | None = None
+    contact_person: str | None = None
+    preferred_channel: str | None = None
+    meetings: str | None = None
+    notes: str | None = None
 
 
 class SupplierOut(SupplierCreate):
@@ -17,6 +21,10 @@ class SupplierUpdate(ORMModel):
     category: str | None = None
     email: str | None = None
     phone: str | None = None
+    contact_person: str | None = None
+    preferred_channel: str | None = None
+    meetings: str | None = None
+    notes: str | None = None
 
 
 class SupplierScoreOut(ORMModel):

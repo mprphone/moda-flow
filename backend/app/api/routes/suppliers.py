@@ -12,9 +12,17 @@ from app.services.scoring.supplier_score import calculate_supplier_score
 router = APIRouter()
 
 
+def serialize_supplier(item) -> dict:
+    return {
+        "id": item.id, "name": item.name, "category": item.category,
+        "email": item.email, "phone": item.phone, "contact_person": item.contact_person,
+        "preferred_channel": item.preferred_channel, "meetings": item.meetings, "notes": item.notes,
+    }
+
+
 @router.get("")
 def get_suppliers(db: Session = Depends(get_db)):
-    return [{"id": item.id, "name": item.name, "category": item.category, "email": item.email, "phone": item.phone} for item in list_all(db)]
+    return [serialize_supplier(item) for item in list_all(db)]
 
 
 @router.post("", status_code=201)
@@ -26,7 +34,7 @@ def post_supplier(payload: SupplierCreate, db: Session = Depends(get_db)):
     db.add(item)
     db.commit()
     db.refresh(item)
-    return item
+    return serialize_supplier(item)
 
 
 @router.patch("/{supplier_id}")
@@ -43,7 +51,7 @@ def patch_supplier(supplier_id: int, payload: SupplierUpdate, db: Session = Depe
     for key, value in data.items():
         setattr(item, key, value)
     db.commit(); db.refresh(item)
-    return item
+    return serialize_supplier(item)
 
 
 @router.delete("/{supplier_id}", status_code=204)
