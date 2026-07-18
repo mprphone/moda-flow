@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { DndContext, DragEndEvent, PointerSensor, useSensor, useSensors } from '@dnd-kit/core'
-import { Filter, PencilRuler, Shirt, Archive, RotateCcw, Building2 } from 'lucide-react'
+import { Filter, Columns3, Archive, RotateCcw, Building2 } from 'lucide-react'
 import { api } from '../api/client'
 import { useAuth } from '../auth'
 import { toast } from '../lib/toast'
@@ -9,25 +9,40 @@ import { PHASE_ONE, PHASE_ONE_IDS, PHASE_TWO } from '../constants/pipeline'
 import { BoardColumn } from '../components/BoardColumn'
 import { DevelopmentModal } from '../components/DevelopmentModal'
 
-type Phase = 'design' | 'sample' | 'client' | 'rejected'
+type Board = 'portfolio' | 'samples'
+type View = 'board' | 'client' | 'rejected'
 
-export function BoardPage({ refreshKey }: { refreshKey: number }) {
+const BOARD_META: Record<Board, { title: string; subtitle: string; boardTab: string }> = {
+  portfolio: {
+    title: 'Portefólio & Modelos',
+    subtitle: 'Desenho e proposta ao cliente. Quando o cliente aprova, o cartão passa sozinho para o desenvolvimento de amostras.',
+    boardTab: 'Propostas',
+  },
+  samples: {
+    title: 'Desenvolvimento de amostras',
+    subtitle: 'A amostra física: ficha técnica, malha, tingimento, modelagem, corte, confeção e envio ao cliente.',
+    boardTab: 'Amostras',
+  },
+}
+
+export function BoardPage({ board, refreshKey }: { board: Board; refreshKey: number }) {
   const { user } = useAuth()
   const [items, setItems] = useState<Development[]>([])
   const [labels, setLabels] = useState<Label[]>([])
   const [selected, setSelected] = useState<Development | null>(null)
-  const [phase, setPhase] = useState<Phase>('design')
+  const [view, setView] = useState<View>('board')
   const [query, setQuery] = useState('')
   const [clientFilter, setClientFilter] = useState('')
   const [riskFilter, setRiskFilter] = useState('')
   const [labelFilter, setLabelFilter] = useState('')
+  const [archiveLimit, setArchiveLimit] = useState(50)
 
-  // O arrasto só arma após 6px de movimento — o clique simples abre o cartão.
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }))
   const load = () => api.get<Development[]>('/developments').then(setItems)
   useEffect(() => { void load(); api.get<Label[]>('/labels').then(setLabels) }, [refreshKey])
 
   const clients = useMemo(() => [...new Set(items.map(item => item.client_name))].sort(), [items])
+  const isPhaseOne = (stage: string) => (PHASE_ONE_IDS as readonly string[]).includes(stage)
 
   const filtered = useMemo(() => items.filter(item => {
     const text = `${item.code} ${item.title} ${item.owner_name} ${item.client_name}`.toLowerCase()
@@ -42,18 +57,16 @@ export function BoardPage({ refreshKey }: { refreshKey: number }) {
   const isArchived = (item: Development) =>
     item.status === 'rejected' || item.status === 'cancelled' || (item.status === 'completed' && item.current_stage !== 'aprovado')
   const rejected = useMemo(() => filtered.filter(isArchived), [filtered])
-  const active = useMemo(() => filtered.filter(item => !isArchived(item)), [filtered])
-  const [archiveLimit, setArchiveLimit] = useState(50)
-  const isPhaseOne = (stage: string) => (PHASE_ONE_IDS as readonly string[]).includes(stage)
-  const designCount = active.filter(item => isPhaseOne(item.current_stage)).length
-  const sampleCount = active.filter(item => !isPhaseOne(item.current_stage)).length
+  // Cada quadro só mostra os seus modelos ativos: portfolio = fase 1, amostras = fase 2
+  const active = useMemo(() => filtered.filter(item =>
+    !isArchived(item) && (board === 'portfolio' ? isPhaseOne(item.current_stage) : !isPhaseOne(item.current_stage))),
+    [filtered, board])
 
-  const byClient = phase === 'client'
-  // Vista por cliente: colunas = clientes com trabalho ativo; senão colunas = fases
+  const byClient = view === 'client'
   const activeClients = useMemo(() => [...new Set(active.map(item => item.client_name))].sort(), [active])
   const columns = byClient
     ? activeClients.map(name => [name, name] as [string, string])
-    : (phase === 'design' ? PHASE_ONE : PHASE_TWO)
+    : (board === 'portfolio' ? PHASE_ONE : PHASE_TWO)
   const grouped = useMemo(
     () => Object.fromEntries(columns.map(([id]) => [id, active.filter(item => byClient ? item.client_name === id : item.current_stage === id)])),
     [columns, active, byClient],
@@ -61,16 +74,13 @@ export function BoardPage({ refreshKey }: { refreshKey: number }) {
 
   async function move(id: number, stage: string) {
     const previous = items
-    // atualização otimista: o cartão muda já de coluna e reverte se a API falhar
     setItems(current => current.map(item => item.id === id ? { ...item, current_stage: stage } : item))
     try {
       const updated = await api.post<Development>(`/developments/${id}/move`, { to_stage: stage })
       setItems(current => current.map(item => item.id === id ? updated : item))
       setSelected(current => current?.id === id ? updated : current)
-      // aprovação do cliente na fase de proposta: o cartão salta sozinho para a amostra
-      if (stage === 'ficha_tecnica' && phase === 'design') {
-        setPhase('sample')
-        toast('success', 'Proposta aprovada pelo cliente — passou para o desenvolvimento de amostras.')
+      if (board === 'portfolio' && stage === 'ficha_tecnica') {
+        toast('success', 'Proposta aprovada — passou para o Desenvolvimento de amostras.')
       }
     } catch {
       setItems(previous)
@@ -87,7 +97,7 @@ export function BoardPage({ refreshKey }: { refreshKey: number }) {
   async function rejectItem(id: number, reason?: string) {
     await updateItem(id, { status: 'rejected', waiting_reason: reason || null })
     setSelected(null)
-    toast('success', 'Proposta arquivada como reprovada. Fica no separador Reprovados.')
+    toast('success', 'Proposta arquivada como reprovada.')
   }
 
   async function reactivate(id: number) {
@@ -107,7 +117,7 @@ export function BoardPage({ refreshKey }: { refreshKey: number }) {
 
   async function createProduction(id: number, quantity: number) {
     await api.post('/productions', { development_id: id, quantity })
-    toast('success', 'Produção criada com sucesso.')
+    toast('success', 'Produção industrial criada.')
   }
 
   async function removeDevelopment(id: number) {
@@ -124,21 +134,22 @@ export function BoardPage({ refreshKey }: { refreshKey: number }) {
     if (item.current_stage !== stage) void move(item.id, stage)
   }
 
+  const meta = BOARD_META[board]
+
   return <div className="board-page">
     <div className="page-heading">
       <div>
-        <h1>Portefólio &amp; Modelos</h1>
-        <p>Fase 1: desenho e proposta. Quando o cliente aprova, o cartão passa sozinho para o desenvolvimento de amostras.</p>
+        <h1>{meta.title}</h1>
+        <p>{meta.subtitle}</p>
       </div>
       <div className="board-legend">
         <span className="mint">Concluído</span><span className="sky">Em curso</span><span className="yellow">Aguarda</span><span className="pink">Atraso</span>
       </div>
     </div>
     <div className="phase-tabs">
-      <button className={phase === 'design' ? 'active' : ''} onClick={() => setPhase('design')}><PencilRuler size={15}/>1 · Propostas <span>{designCount}</span></button>
-      <button className={phase === 'sample' ? 'active' : ''} onClick={() => setPhase('sample')}><Shirt size={15}/>2 · Desenvolvimento de amostras <span>{sampleCount}</span></button>
-      <button className={phase === 'client' ? 'active' : ''} onClick={() => setPhase('client')}><Building2 size={15}/>Por cliente <span>{active.length}</span></button>
-      <button className={phase === 'rejected' ? 'active' : ''} onClick={() => setPhase('rejected')}><Archive size={15}/>Arquivo <span>{rejected.length}</span></button>
+      <button className={view === 'board' ? 'active' : ''} onClick={() => setView('board')}><Columns3 size={15}/>{meta.boardTab} <span>{active.length}</span></button>
+      <button className={view === 'client' ? 'active' : ''} onClick={() => setView('client')}><Building2 size={15}/>Por cliente <span>{active.length}</span></button>
+      <button className={view === 'rejected' ? 'active' : ''} onClick={() => setView('rejected')}><Archive size={15}/>Arquivo <span>{rejected.length}</span></button>
     </div>
     <div className="filter-bar">
       <Filter size={16}/>
@@ -159,12 +170,12 @@ export function BoardPage({ refreshKey }: { refreshKey: number }) {
       </select>
       {(query || clientFilter || riskFilter || labelFilter) && <button className="clear-filters" onClick={() => { setQuery(''); setClientFilter(''); setRiskFilter(''); setLabelFilter('') }}>Limpar</button>}
     </div>
-    {phase !== 'rejected' && <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+    {view !== 'rejected' && <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
       <div className="board-scroll">
         {columns.map(([id, title]) => <BoardColumn key={id} id={id} title={title} items={grouped[id] || []} onOpen={setSelected} showStage={byClient}/>) }
       </div>
     </DndContext>}
-    {phase === 'rejected' && <div className="rejected-list">
+    {view === 'rejected' && <div className="rejected-list">
       {rejected.length === 0 && <p className="empty-note">Arquivo vazio.</p>}
       {rejected.slice(0, archiveLimit).map(item => <article className="fabric-row" key={item.id}>
         {item.cover_url && <img src={item.cover_url} alt=""/>}

@@ -28,7 +28,8 @@ function Shell() {
       <Topbar onCreate={() => setCreating(true)}/>
       <main>
         {page === 'today' && <TodayPage/>}
-        {page === 'board' && <BoardPage refreshKey={refreshKey}/>}
+        {page === 'board' && <BoardPage board="portfolio" refreshKey={refreshKey}/>}
+        {page === 'samples' && <BoardPage board="samples" refreshKey={refreshKey}/>}
         {page === 'fabrics' && <FabricsPage/>}
         {page === 'shopping' && <ShoppingPage/>}
         {page === 'partners' && <PartnersPage/>}
