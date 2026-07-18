@@ -7,3 +7,5 @@ backend/.venv/
 node_modules/
 frontend/dist/
 backend/uploads/
+
+/uploads/
