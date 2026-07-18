@@ -190,6 +190,7 @@ def patch_production(production_id: int, payload: ProductionUpdate, db: Session 
     for key, value in data.items():
         setattr(item, key, value)
     db.commit()
+    db.expire_all()  # força recarregar relações (ex.: development após mudar development_id)
     return serialize_detail(load_by_id(db, production_id), db)
 
 
