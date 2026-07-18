@@ -20,15 +20,16 @@ function Shell() {
   const { user, loading } = useAuth()
   const [page, setPage] = useState('today')
   const [creating, setCreating] = useState(false)
+  const [navOpen, setNavOpen] = useState(false)
   const [refreshKey, setRefreshKey] = useState(0)
 
   if (loading) return <div className="loading">A iniciar sessão...</div>
   if (!user) return <LoginPage/>
 
   return <div className="app-shell">
-    <Sidebar active={page} onChange={setPage}/>
+    <Sidebar active={page} onChange={setPage} mobileOpen={navOpen} onClose={() => setNavOpen(false)}/>
     <div className="main-shell">
-      <Topbar onCreate={() => setCreating(true)}/>
+      <Topbar onCreate={() => setCreating(true)} onMenu={() => setNavOpen(true)}/>
       <main>
         {page === 'today' && <TodayPage/>}
         {page === 'board' && <BoardPage board="portfolio" refreshKey={refreshKey}/>}
